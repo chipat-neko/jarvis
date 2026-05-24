@@ -1,31 +1,31 @@
-"""CLI conversationnelle Jarvis (MVP texte, 100% local).
+"""CLI conversationnelle Jarvis (MVP texte, 100% local, multi-tour).
 
-REPL minimal :
-    > tu tapes un message
-    Jarvis: réponse du LLM local (Ollama gpt-oss:120b par défaut, ou HF transformers)
+REPL multi-tour avec historique persistant : Jarvis se souvient des messages
+précédents dans la même session ET entre redémarrages (historique sauvegardé
+dans `.local/conversation.json` à la racine du repo, gitignored).
 
 Modes :
-- in-process (par défaut) : appel direct du router dans le même process. Pas
-  besoin de démarrer jarvis-llm séparément. Idéal pour test rapide.
-- gRPC (--via-grpc) : passe par le service jarvis-llm distant (port 50052).
+- in-process (par défaut) : appel direct du router. Pas besoin de jarvis-llm.
+- gRPC (--via-grpc) : passe par le service jarvis-llm:50052. Note : le mode
+  gRPC est mono-tour pour l'instant (Complete RPC ne prend qu'un prompt + system).
 
 Backends :
-- ollama (défaut) : Ollama HTTP local, modèle gpt-oss:120b par défaut
-- hf : transformers in-process, modèle Qwen/Qwen2.5-Coder-7B-Instruct par défaut
-  (utilise les modèles HF déjà téléchargés dans HF_HOME / D:\\.cache\\huggingface)
+- ollama (défaut) : Ollama HTTP, modèle qwen3:14b par défaut (think=False)
+- hf : transformers in-process, Qwen/Qwen2.5-Coder-7B-Instruct par défaut
 
 Usage :
-    py -3.11 -m orchestrator.chat                                   # ollama gpt-oss:120b
-    py -3.11 -m orchestrator.chat --ollama-model qwen2.5:14b-instruct-q4_K_M
-    py -3.11 -m orchestrator.chat --backend hf                      # HF Qwen2.5-Coder-7B-Instruct
-    py -3.11 -m orchestrator.chat --backend hf --hf-model microsoft/phi-2
-    py -3.11 -m orchestrator.chat --backend hf --quantize-4bit      # 4-bit quantization
-    py -3.11 -m orchestrator.chat --via-grpc                        # via jarvis-llm:50052
+    python -m orchestrator.chat                                   # défaut
+    python -m orchestrator.chat --ollama-model gpt-oss:120b       # top qualité
+    python -m orchestrator.chat --backend hf                      # backend HF
+    python -m orchestrator.chat --no-history                      # mono-tour, pas de mémoire
+    python -m orchestrator.chat --history-window 40               # garder 40 messages au lieu de 20
+    python -m orchestrator.chat --via-grpc                        # via jarvis-llm:50052
 
 Commandes spéciales :
     /quit, /exit, Ctrl+C    -> sortir
-    /reset                  -> oublier l'historique (non implémenté dans ce MVP)
-    /model                  -> afficher le modèle utilisé
+    /reset                  -> efface l'historique (mémoire + disque)
+    /history                -> affiche l'historique courant
+    /model                  -> affiche le modèle utilisé
 """
 
 from __future__ import annotations
@@ -39,12 +39,16 @@ from jarvis_llm.clients.ollama_client import DEFAULT_LOCAL_MODEL, OllamaClient
 from jarvis_llm.intent_classifier import classify
 from jarvis_llm.router import LlmBackend, LlmRouter
 from orchestrator.clients import llm_client as grpc_llm_client
+from orchestrator.conversation import Conversation
 
 DEFAULT_BACKEND = "ollama"
+DEFAULT_HISTORY_WINDOW = 20
+HISTORY_PREVIEW_CHARS = 200
 DEFAULT_SYSTEM_PROMPT = (
     "Tu es Jarvis, un assistant personnel concis et précis. Tu réponds en "
     "français (sauf si l'utilisateur écrit en anglais), sans phrases creuses, "
-    "et tu vas droit au but. Tu peux refuser poliment ce que tu ne sais pas faire."
+    "et tu vas droit au but. Tu peux refuser poliment ce que tu ne sais pas faire. "
+    "Tu te souviens des messages précédents dans cette conversation."
 )
 
 
@@ -65,13 +69,21 @@ def _build_in_process_router(
     return LlmRouter(backend=chosen)
 
 
-async def _answer_in_process(router: LlmRouter, prompt: str) -> tuple[str, str, str]:
-    intent = classify(prompt)
-    result = await router.execute(prompt, intent, system=DEFAULT_SYSTEM_PROMPT)
+async def _answer_in_process(
+    router: LlmRouter,
+    conversation: Conversation,
+    user_msg: str,
+) -> tuple[str, str, str]:
+    """Ajoute le user_msg à l'historique, appelle le LLM, ajoute la réponse."""
+    conversation.add_user(user_msg)
+    intent = classify(user_msg)
+    result = await router.chat(conversation.as_messages(), intent, max_tokens=1024)
+    conversation.add_assistant(result.text)
     return result.text, result.model, result.intent.value
 
 
 def _answer_via_grpc(prompt: str, address: str) -> tuple[str, str, str]:
+    """Mode gRPC actuel = mono-tour (Complete RPC). Historique pas propagé."""
     intent = classify(prompt).value
     result = grpc_llm_client.complete(
         prompt=prompt,
@@ -85,15 +97,90 @@ def _answer_via_grpc(prompt: str, address: str) -> tuple[str, str, str]:
     return result.text, result.model, result.intent
 
 
-def _print_banner(*, via_grpc: bool, backend: str, model: str) -> None:
+def _print_banner(
+    *,
+    via_grpc: bool,
+    backend: str,
+    model: str,
+    history_enabled: bool,
+    turns_loaded: int,
+) -> None:
     mode = "gRPC (jarvis-llm)" if via_grpc else "in-process"
-    print("┌─────────────────────────────────────────────────────────┐")
-    print("│  Jarvis MVP — chat texte (100% local)                   │")
-    print(f"│  mode    : {mode:<44}│")
-    print(f"│  backend : {backend:<44}│")
-    print(f"│  model   : {model:<44}│")
-    print("│  /quit pour sortir, /model pour voir le modèle          │")
-    print("└─────────────────────────────────────────────────────────┘")
+    history_status = (
+        "off (mono-tour)" if not history_enabled else f"on ({turns_loaded} tours chargés)"
+    )
+    print("┌─────────────────────────────────────────────────────────────┐")
+    print("│  Jarvis MVP — chat texte (100% local, multi-tour)           │")
+    print(f"│  mode      : {mode:<46}│")
+    print(f"│  backend   : {backend:<46}│")
+    print(f"│  model     : {model:<46}│")
+    print(f"│  historique: {history_status:<46}│")
+    print("│  /quit /reset /history /model                               │")
+    print("└─────────────────────────────────────────────────────────────┘")
+
+
+def _show_history(conversation: Conversation) -> None:
+    msgs = conversation.messages()
+    if not msgs:
+        print("(historique vide)")
+        return
+    print(f"(historique : {len(msgs)} messages)")
+    for m in msgs:
+        prefix = "Vous>   " if m.role == "user" else "Jarvis> "
+        # Tronque les longs messages pour rester lisible
+        content = m.content
+        if len(content) >= HISTORY_PREVIEW_CHARS:
+            content = content[:HISTORY_PREVIEW_CHARS] + "..."
+        print(f"  {prefix}{content}")
+
+
+def _handle_special_command(
+    user: str,
+    conversation: Conversation | None,
+    last_model: str,
+) -> bool:
+    """Retourne True si la ligne user était une commande gérée (REPL doit `continue`)."""
+    cmd = user.lower()
+    if cmd in {"/quit", "/exit", "exit", "quit"}:
+        print("👋 Bye.")
+        raise SystemExit(0)
+    if cmd == "/reset":
+        if conversation is None:
+            print("(historique désactivé)")
+        else:
+            conversation.reset()
+            print("✅ Historique effacé (mémoire + disque).")
+        return True
+    if cmd == "/history":
+        if conversation is None:
+            print("(historique désactivé)")
+        else:
+            _show_history(conversation)
+        return True
+    if cmd == "/model":
+        print(f"Dernier modèle : {last_model}")
+        return True
+    return False
+
+
+def _dispatch_user_message(
+    user: str,
+    *,
+    via_grpc: bool,
+    grpc_address: str,
+    router: LlmRouter | None,
+    conversation: Conversation | None,
+) -> tuple[str, str, str]:
+    """Route le message utilisateur vers gRPC ou in-process, avec ou sans historique."""
+    if via_grpc:
+        return _answer_via_grpc(user, address=grpc_address)
+    if conversation is not None:
+        assert router is not None
+        return asyncio.run(_answer_in_process(router, conversation, user))
+    # Mode --no-history en in-process : tour isolé sans persistance
+    assert router is not None
+    tmp_conv = Conversation(system_prompt=DEFAULT_SYSTEM_PROMPT, window=2, path=None)
+    return asyncio.run(_answer_in_process(router, tmp_conv, user))
 
 
 def run_repl(
@@ -104,6 +191,8 @@ def run_repl(
     hf_model: str,
     quantize_4bit: bool,
     grpc_address: str,
+    history_enabled: bool,
+    history_window: int,
 ) -> int:
     router: LlmRouter | None = None
     if not via_grpc:
@@ -114,8 +203,25 @@ def run_repl(
             quantize_4bit=quantize_4bit,
         )
 
+    # Conversation : path par défaut auto-détecté (.local/conversation.json à la racine
+    # du repo). path=None désactive la persistance.
+    if history_enabled and not via_grpc:
+        conversation: Conversation | None = Conversation(
+            system_prompt=DEFAULT_SYSTEM_PROMPT,
+            window=history_window,
+        )
+    else:
+        conversation = None
+
     display_model = ollama_model if backend == "ollama" else hf_model
-    _print_banner(via_grpc=via_grpc, backend=backend, model=display_model)
+    turns_loaded = conversation.turn_count() if conversation is not None else 0
+    _print_banner(
+        via_grpc=via_grpc,
+        backend=backend,
+        model=display_model,
+        history_enabled=conversation is not None,
+        turns_loaded=turns_loaded,
+    )
     if backend == "hf" and not via_grpc:
         print("(1er appel HF : chargement modèle, peut prendre 30s à 2min…)", file=sys.stderr)
 
@@ -131,24 +237,20 @@ def run_repl(
         if not user:
             continue
 
-        if user.lower() in {"/quit", "/exit", "exit", "quit"}:
-            print("👋 Bye.")
-            return 0
-
-        if user.lower() == "/reset":
-            print("(historique non implémenté dans ce MVP — chaque tour est indépendant)")
-            continue
-
-        if user.lower() == "/model":
-            print(f"Dernier modèle : {last_model}")
-            continue
+        try:
+            if _handle_special_command(user, conversation, last_model):
+                continue
+        except SystemExit as exc:
+            return int(exc.code or 0)
 
         try:
-            if via_grpc:
-                text, used_model, intent = _answer_via_grpc(user, address=grpc_address)
-            else:
-                assert router is not None
-                text, used_model, intent = asyncio.run(_answer_in_process(router, user))
+            text, used_model, intent = _dispatch_user_message(
+                user,
+                via_grpc=via_grpc,
+                grpc_address=grpc_address,
+                router=router,
+                conversation=conversation,
+            )
         except Exception as exc:
             print(f"❌ Erreur : {type(exc).__name__}: {exc}", file=sys.stderr)
             continue
@@ -160,12 +262,12 @@ def run_repl(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="REPL de chat Jarvis (MVP texte, 100% local : Ollama ou HuggingFace)",
+        description="REPL de chat Jarvis (MVP texte multi-tour, 100% local)",
     )
     parser.add_argument(
         "--via-grpc",
         action="store_true",
-        help="passe par le service jarvis-llm distant (gRPC)",
+        help="passe par le service jarvis-llm distant (gRPC, mono-tour pour l'instant)",
     )
     parser.add_argument(
         "--backend",
@@ -193,6 +295,17 @@ def main() -> int:
         default=grpc_llm_client.DEFAULT_LLM_ADDRESS,
         help="adresse jarvis-llm en mode --via-grpc",
     )
+    parser.add_argument(
+        "--no-history",
+        action="store_true",
+        help="désactive l'historique conversationnel (mode mono-tour comme avant)",
+    )
+    parser.add_argument(
+        "--history-window",
+        type=int,
+        default=DEFAULT_HISTORY_WINDOW,
+        help=f"nombre max de messages user/assistant à garder (défaut {DEFAULT_HISTORY_WINDOW})",
+    )
     args = parser.parse_args()
 
     try:
@@ -203,6 +316,8 @@ def main() -> int:
             hf_model=args.hf_model,
             quantize_4bit=args.quantize_4bit,
             grpc_address=args.grpc_address,
+            history_enabled=not args.no_history,
+            history_window=args.history_window,
         )
     except RuntimeError as exc:
         print(f"❌ {exc}", file=sys.stderr)

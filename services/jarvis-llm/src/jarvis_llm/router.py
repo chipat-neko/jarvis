@@ -47,8 +47,10 @@ class _BackendCompletion(Protocol):
 class LlmBackend(Protocol):
     """Interface d'un backend LLM (Ollama, HuggingFace, ou tout futur ajout).
 
-    Doit exposer un attribut `.model` (nom du modèle utilisé) et une méthode
-    async `.complete(prompt, *, max_tokens, system) -> _BackendCompletion`.
+    Doit exposer :
+    - `.model` : nom du modèle utilisé
+    - `.complete(prompt, *, max_tokens, system)` : appel mono-tour (compat)
+    - `.chat(messages, *, max_tokens)` : appel multi-tour avec historique
     """
 
     model: str
@@ -59,6 +61,13 @@ class LlmBackend(Protocol):
         *,
         max_tokens: int = ...,
         system: str | None = ...,
+    ) -> _BackendCompletion: ...
+
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_tokens: int = ...,
     ) -> _BackendCompletion: ...
 
 
@@ -94,9 +103,39 @@ class LlmRouter:
         max_tokens: int = 1024,
         system: str | None = None,
     ) -> CompletionResult:
-        """Exécute l'appel LLM via le backend configuré."""
+        """Exécute un appel LLM mono-tour (compat MVP initial).
+
+        Pour le multi-tour avec historique, utiliser `chat(messages, intent, ...)`.
+        """
         estimated = self._estimate_tokens(prompt)
         completion = await self.backend.complete(prompt, max_tokens=max_tokens, system=system)
+        return CompletionResult(
+            text=completion.text,
+            model=completion.model,
+            intent=intent,
+            input_tokens=completion.prompt_tokens,
+            output_tokens=completion.completion_tokens,
+            estimated_prompt_tokens=estimated,
+        )
+
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        intent: IntentClass,
+        *,
+        max_tokens: int = 1024,
+    ) -> CompletionResult:
+        """Exécute un appel LLM multi-tour avec historique conversationnel.
+
+        Args:
+            messages: liste OpenAI-style ([{"role": "system|user|assistant", "content": "..."}])
+            intent: classification (loggée, ne change pas la cible pour l'instant).
+            max_tokens: limite tokens en sortie.
+        """
+        # Estimation = somme des longueurs des messages user/system pour info.
+        joined = "\n".join(m.get("content", "") for m in messages)
+        estimated = self._estimate_tokens(joined)
+        completion = await self.backend.chat(messages, max_tokens=max_tokens)
         return CompletionResult(
             text=completion.text,
             model=completion.model,

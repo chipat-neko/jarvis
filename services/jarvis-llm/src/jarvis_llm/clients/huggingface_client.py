@@ -123,39 +123,41 @@ class HuggingFaceClient:
         max_tokens: int = 512,
         system: str | None = None,
     ) -> HuggingFaceCompletion:
-        """Génère une complétion non-streaming.
+        """Génère une complétion mono-tour (compat MVP initial).
+
+        Pour le multi-tour avec historique, préférer `chat(messages, ...)`.
+        """
+        messages: list[dict[str, str]] = []
+        if system is not None:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        return await self.chat(messages, max_tokens=max_tokens)
+
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_tokens: int = 512,
+    ) -> HuggingFaceCompletion:
+        """Génère une complétion multi-tour depuis une liste de messages.
 
         Args:
-            prompt: message utilisateur.
+            messages: liste au format OpenAI/Ollama
+                ([{"role": "system|user|assistant", "content": "..."}, ...]).
             max_tokens: limite de tokens en sortie (mappé sur `max_new_tokens`).
-            system: prompt système optionnel.
-
-        Returns:
-            HuggingFaceCompletion avec texte + comptage tokens.
-
-        Raises:
-            transformers exceptions : propagées (modèle introuvable, OOM, etc.).
         """
         await self._ensure_loaded()
         assert self._tokenizer is not None
         assert self._model is not None
+        return await asyncio.to_thread(self._chat_sync, messages, max_tokens=max_tokens)
 
-        return await asyncio.to_thread(
-            self._complete_sync, prompt, max_tokens=max_tokens, system=system
-        )
-
-    def _complete_sync(
-        self, prompt: str, *, max_tokens: int, system: str | None
+    def _chat_sync(
+        self, messages: list[dict[str, str]], *, max_tokens: int
     ) -> HuggingFaceCompletion:
         import torch  # noqa: PLC0415
 
         assert self._tokenizer is not None
         assert self._model is not None
-
-        messages = []
-        if system is not None:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
 
         # `apply_chat_template` renvoie un BatchEncoding (dict-like) en transformers 5.x.
         # Tous les modèles `*-Instruct` modernes (Qwen, Llama 3, Phi, ...) ont un template.

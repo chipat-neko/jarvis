@@ -141,14 +141,32 @@ Jarvis> ...
 
 À terme on pourra router vers des modèles différents selon l'intent (petit modèle rapide pour conversation, gros pour code).
 
-## 6. Limites connues
+## 6. Historique conversationnel (depuis v0.3)
 
-- **Pas d'historique conversation** — chaque tour indépendant.
-- **Pas de streaming** — réponse d'un coup.
-- **Pas de tool use réel** — TOOL_USE classé mais sans capacité d'agir (S5+).
+Jarvis se souvient maintenant des messages précédents :
+
+- **En mémoire** : fenêtre glissante de 20 messages user/assistant par défaut (`--history-window N` pour ajuster).
+- **Sur disque** : sauvegardé à `<repo>/.local/conversation.json` (gitignored). Reprise possible après redémarrage.
+- **Commandes REPL** :
+  - `/reset` → efface l'historique (mémoire + disque)
+  - `/history` → affiche l'historique courant
+- **Désactivable** via `--no-history` (mode mono-tour comme avant).
+- **Mode gRPC** (`--via-grpc`) : pour l'instant mono-tour ; l'historique sera ajouté au RPC dans une prochaine itération.
+
+Exemple validé E2E :
+> Vous: Salut, je m'appelle Noah.
+> Jarvis: Salut Noah, enchanté de te rencontrer.
+> Vous: Quel est mon nom ?
+> Jarvis: Ton nom est Noah. ✅
+
+## 7. Limites connues
+
+- **Pas de streaming** — réponse d'un coup (le streaming arrive avec le pipeline voice S3-S4).
+- **Pas de tool use réel** — TOOL_USE classé mais sans capacité d'agir (S5+, MCP).
 - **HF charge le modèle à chaque démarrage** — pas de persistance entre runs. Le mode `--via-grpc` permet de garder le modèle chargé via le service jarvis-llm.
+- **Mode gRPC encore mono-tour** — le RPC Complete ne prend qu'un prompt + system, pas une liste de messages. À refactor.
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 | Problème | Solution |
 |---|---|

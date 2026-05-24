@@ -71,3 +71,37 @@ async def test_execute_passes_max_tokens_and_system_through() -> None:
         max_tokens=256,
         system="Be concise",
     )
+
+
+@pytest.mark.asyncio
+async def test_chat_calls_backend_chat_with_messages() -> None:
+    ollama = _make_ollama_mock("Hello Noah")
+    # Le mock générique d'AsyncMock fournit aussi .chat() automatiquement,
+    # mais on configure explicitement pour clarté.
+    from unittest.mock import AsyncMock
+
+    from jarvis_llm.clients.ollama_client import OllamaCompletion
+
+    ollama.chat = AsyncMock(
+        return_value=OllamaCompletion(
+            text="Hello Noah",
+            model="qwen3:14b",
+            prompt_tokens=20,
+            completion_tokens=3,
+        )
+    )
+    router = LlmRouter(backend=ollama)
+
+    messages = [
+        {"role": "system", "content": "Tu es Jarvis."},
+        {"role": "user", "content": "Mon nom est Noah."},
+        {"role": "assistant", "content": "Enchanté."},
+        {"role": "user", "content": "Comment je m'appelle ?"},
+    ]
+    result = await router.chat(messages, IntentClass.CONVERSATIONAL, max_tokens=128)
+
+    assert result.text == "Hello Noah"
+    assert result.intent is IntentClass.CONVERSATIONAL
+    assert result.input_tokens == 20
+    assert result.output_tokens == 3
+    ollama.chat.assert_awaited_once_with(messages, max_tokens=128)

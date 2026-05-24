@@ -70,26 +70,41 @@ class OllamaClient:
         max_tokens: int = 512,
         system: str | None = None,
     ) -> OllamaCompletion:
-        """Génère une complétion non-streaming pour le prompt donné.
+        """Génère une complétion mono-tour (compat MVP initial).
+
+        Pour le multi-tour avec historique, préférer `chat(messages, ...)`.
 
         Args:
             prompt: message utilisateur.
-            max_tokens: limite de tokens en sortie (mappé sur `num_predict` côté Ollama).
+            max_tokens: limite de tokens en sortie (mappé sur `num_predict`).
             system: prompt système optionnel.
+        """
+        messages: list[dict[str, str]] = []
+        if system is not None:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        return await self.chat(messages, max_tokens=max_tokens)
 
-        Returns:
-            OllamaCompletion avec le texte + comptage tokens (depuis prompt_eval_count
-            et eval_count retournés par Ollama).
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_tokens: int = 512,
+    ) -> OllamaCompletion:
+        """Génère une complétion multi-tour à partir d'une liste de messages.
+
+        Args:
+            messages: liste au format Ollama / OpenAI, ex :
+                [{"role": "system", "content": "..."},
+                 {"role": "user", "content": "..."},
+                 {"role": "assistant", "content": "..."},
+                 {"role": "user", "content": "..."}]
+            max_tokens: limite de tokens en sortie.
 
         Raises:
             ollama.ResponseError: erreur API Ollama (ex: modèle pas pulled).
             httpx.ConnectError: serveur Ollama injoignable.
         """
-        messages = []
-        if system is not None:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-
         response = await self._client.chat(
             model=self.model,
             messages=messages,
@@ -97,7 +112,6 @@ class OllamaClient:
             think=self.think,
             stream=False,
         )
-
         return OllamaCompletion(
             text=response["message"]["content"],
             model=response.get("model", self.model),

@@ -119,14 +119,19 @@ ollama pull qwen3:14b
 - Copier `config/config.example.yaml` → `config/local.yaml` (gitignored) et remplir
 - **Aucune clé API requise** : Jarvis tourne 100% local via Ollama. Privacy by default.
 
-### Lancer le chat (MVP texte, 100% local)
+### Lancer le chat (MVP texte multi-tour, 100% local)
+
+Le chat est **multi-tour avec historique persistant** : Jarvis se souvient de la conversation, même après redémarrage (`.local/conversation.json`, gitignored).
 
 ```powershell
-py -3.11 -m orchestrator.chat                                  # qwen3:14b (défaut)
-py -3.11 -m orchestrator.chat --ollama-model gpt-oss:120b      # top qualité mais 2 min cold start
-py -3.11 -m orchestrator.chat --backend hf                     # backend HuggingFace
-py -3.11 -m orchestrator.chat --via-grpc                       # via jarvis-llm:50052
+python -m orchestrator.chat                                # qwen3:14b (défaut)
+python -m orchestrator.chat --ollama-model gpt-oss:120b    # top qualité
+python -m orchestrator.chat --backend hf                   # backend HuggingFace
+python -m orchestrator.chat --no-history                   # désactive l'historique
+python -m orchestrator.chat --via-grpc                     # via jarvis-llm:50052
 ```
+
+Commandes spéciales : `/quit` `/reset` (efface l'historique) `/history` `/model`.
 
 Override permanent du modèle : `$env:JARVIS_LLM_MODEL = "..."`.
 
