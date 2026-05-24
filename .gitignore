@@ -258,3 +258,9 @@ config/*.local.*
 # Données de test / fixtures audio personnelles
 fixtures/personal/
 fixtures/audio_real/
+
+# Notes / aide-mémoire perso de l'utilisateur (jamais sur GitHub)
+MES_*.md
+*.local.md
+NOTES_PERSO.md
+TODO_PERSO.md

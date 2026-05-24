@@ -97,19 +97,21 @@ Chaque service Python a son `pyproject.toml` et son arbo `src/jarvis_X/` + `test
 git clone git@github.com:chipat-neko/jarvis.git d:\assistant_ai\jarvis
 cd d:\assistant_ai\jarvis
 
-# Python workspace
-python -m venv .venv
-.venv\Scripts\activate
-pip install -e .[dev]                                    # tooling transverse (ruff, mypy, pytest)
-pip install -e services/jarvis-orchestrator              # orchestrateur (CLI chat)
-pip install -e services/jarvis-llm                       # routeur LLM hybride local/cloud
-# (Les autres services seront installables une fois leur code écrit aux sprints S2+)
+# Python venv (recommandé pour isoler les deps)
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1                                 # active le venv (à refaire à chaque nouveau terminal)
+python -m pip install --upgrade pip
+python -m pip install ruff mypy pytest pytest-asyncio      # outils dev
+python -m pip install -e services\jarvis-orchestrator      # orchestrateur (CLI chat)
+python -m pip install -e services\jarvis-llm               # service LLM (Ollama wrapper)
+# Optionnel : backend HuggingFace transformers
+# python -m pip install -e ".\services\jarvis-llm[hf]"
 
 # Rust workspace
 cargo build --workspace
 
-# Ollama (~5 GB)
-ollama pull qwen2.5:14b-instruct-q4_K_M
+# Ollama (~9 GB Q4 défaut)
+ollama pull qwen3:14b
 ```
 
 ### Configuration

@@ -7,28 +7,52 @@
 - Python 3.11
 - Selon le backend choisi :
   - **Ollama** (recommandé pour démarrer) : déjà installé. Modèle par défaut `qwen3:14b` (~9 GB Q4, ~31 tok/s avec `think=False`, tient en VRAM 16 GB). Alternative `gpt-oss:120b` (65 GB, top qualité absolue, ~9 tok/s steady, ~2 min cold start).
-  - **HuggingFace** : `torch`, `transformers`, `accelerate` (et `bitsandbytes` si tu veux quantization 4-bit). **Déjà installés** sur ton PC.
-- Repo installé en editable :
+  - **HuggingFace** : `torch`, `transformers`, `accelerate` (et `bitsandbytes` si tu veux quantization 4-bit).
 
-  ```powershell
-  cd d:\assistant_ai\jarvis
-  py -3.11 -m pip install -e services\jarvis-orchestrator -e services\jarvis-llm
-  ```
+### Mettre en place le venv (à faire une fois)
+
+Recommandé : créer un environnement virtuel `.venv` à la racine du repo pour isoler les dépendances.
+
+```powershell
+cd d:\assistant_ai\jarvis
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install ruff mypy pytest pytest-asyncio -e services\jarvis-orchestrator -e services\jarvis-llm
+```
+
+Pour le backend HuggingFace, ajouter les deps optionnelles :
+
+```powershell
+python -m pip install -e ".\services\jarvis-llm[hf]"
+```
+
+Le `.venv` est gitignored — il reste local à ta machine.
+
+**À chaque nouveau terminal**, réactive le venv :
+```powershell
+cd d:\assistant_ai\jarvis
+.venv\Scripts\Activate.ps1
+```
+
+Tu verras `(.venv)` au début du prompt PowerShell quand c'est actif.
 
 ## 2. Lancer le chat
 
 ### Backend Ollama (défaut)
 
+(le `.venv` doit être activé — cf section 1)
+
 ```powershell
-py -3.11 -m orchestrator.chat
+python -m orchestrator.chat
 # → qwen3:14b via Ollama HTTP (chat + code, ~31 tok/s, think=False par défaut)
 ```
 
 Changer le modèle Ollama :
 
 ```powershell
-py -3.11 -m orchestrator.chat --ollama-model gpt-oss:120b   # top qualité, plus lent
-py -3.11 -m orchestrator.chat --ollama-model qwen2.5:14b-instruct-q4_K_M
+python -m orchestrator.chat --ollama-model gpt-oss:120b   # top qualité, plus lent
+python -m orchestrator.chat --ollama-model qwen2.5:14b-instruct-q4_K_M
 ```
 
 **Note thinking models** : Qwen 3 (et DeepSeek-R1, etc.) ont un mode de raisonnement interne `<think>…</think>` qui consomme du `max_tokens` avant la vraie réponse. On le **désactive par défaut** côté `OllamaClient` (`think=False`) pour avoir des réponses directes et rapides. Si tu veux le raisonnement étape par étape, instancie `OllamaClient(model="qwen3:14b", think=True)`.
