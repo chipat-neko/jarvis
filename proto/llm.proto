@@ -1,0 +1,19 @@
+﻿// proto/llm.proto
+// Contrat du service jarvis-llm : routing local (Ollama Qwen) + cloud (Anthropic Sonnet).
+// TODO: definir les RPC reels en S2.
+
+syntax = "proto3";
+package jarvis.llm.v1;
+
+import "common.proto";
+
+service LlmService {
+    rpc Ping (PingRequest) returns (PingResponse);
+
+    // TODO S2 : rpc Complete (CompleteRequest) returns (CompleteResponse);
+    // TODO S2 : rpc Stream (CompleteRequest) returns (stream CompletionChunk);
+    // TODO S2 : rpc RouteIntent (IntentRequest) returns (RouteDecision);
+}
+
+message PingRequest { string client_id = 1; }
+message PingResponse { jarvis.common.v1.Status status = 1; string version = 2; }

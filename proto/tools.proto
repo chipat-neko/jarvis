@@ -1,0 +1,18 @@
+﻿// proto/tools.proto
+// Contrat du service jarvis-tools : wrapper MCP servers.
+// TODO: definir les RPC reels en S6.
+
+syntax = "proto3";
+package jarvis.tools.v1;
+
+import "common.proto";
+
+service ToolsService {
+    rpc Ping (PingRequest) returns (PingResponse);
+
+    // TODO S6 : rpc ListTools (ListToolsRequest) returns (ListToolsResponse);
+    // TODO S6 : rpc CallTool (CallToolRequest) returns (CallToolResponse);
+}
+
+message PingRequest { string client_id = 1; }
+message PingResponse { jarvis.common.v1.Status status = 1; string version = 2; }

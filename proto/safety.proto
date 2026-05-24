@@ -1,0 +1,20 @@
+﻿// proto/safety.proto
+// Contrat du service jarvis-safety : kill switch + audit log + blacklist + confirmations.
+// TODO: definir les RPC reels en S11.
+
+syntax = "proto3";
+package jarvis.safety.v1;
+
+import "common.proto";
+
+service SafetyService {
+    rpc Ping (PingRequest) returns (PingResponse);
+
+    // TODO S11 : rpc LogAction (LogActionRequest) returns (jarvis.common.v1.Status);
+    // TODO S11 : rpc KillSwitch (KillSwitchRequest) returns (jarvis.common.v1.Status);
+    // TODO S11 : rpc ConfirmAction (ConfirmActionRequest) returns (ConfirmActionResponse);
+    // TODO S11 : rpc CheckBlacklist (CheckBlacklistRequest) returns (CheckBlacklistResponse);
+}
+
+message PingRequest { string client_id = 1; }
+message PingResponse { jarvis.common.v1.Status status = 1; string version = 2; }

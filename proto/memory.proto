@@ -1,0 +1,19 @@
+﻿// proto/memory.proto
+// Contrat du service jarvis-memory : Mem0 + sqlite-vec + embeddings.
+// TODO: definir les RPC reels en S5.
+
+syntax = "proto3";
+package jarvis.memory.v1;
+
+import "common.proto";
+
+service MemoryService {
+    rpc Ping (PingRequest) returns (PingResponse);
+
+    // TODO S5 : rpc Remember (RememberRequest) returns (RememberResponse);
+    // TODO S5 : rpc Recall (RecallRequest) returns (RecallResponse);
+    // TODO S5 : rpc Search (SearchRequest) returns (SearchResponse);
+}
+
+message PingRequest { string client_id = 1; }
+message PingResponse { jarvis.common.v1.Status status = 1; string version = 2; }

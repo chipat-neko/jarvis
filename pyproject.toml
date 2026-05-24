@@ -1,0 +1,107 @@
+# pyproject.toml workspace racine — Jarvis
+#
+# Convention : tout service Python vit sous services/jarvis-X/ avec son propre
+# pyproject.toml. Ce fichier racine sert pour les outils transverses (ruff, mypy)
+# et le dev tooling commun.
+#
+# Cf docs/adr/0001-microservices-python-rust.md pour la décision archi.
+
+[project]
+name = "jarvis-workspace"
+version = "0.1.0"
+description = "Workspace racine du projet Jarvis (assistant vocal personnel multi-services)"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "Noah Trillon", email = "noah.trillon28@gmail.com" }]
+
+# Pas de dépendances directes au niveau workspace —
+# chaque service déclare ses propres deps dans son pyproject.toml.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pre-commit>=4.0",
+]
+
+# --- Outils transverses ---
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = [
+    "services/jarvis-orchestrator/src",
+    "services/jarvis-llm/src",
+    "services/jarvis-cu/src",
+    "services/jarvis-tools/src",
+    "services/jarvis-memory/src",
+    "services/jarvis-ui/src",
+    "services/jarvis-safety/src",
+]
+extend-exclude = [
+    "**/proto_gen/**",  # code généré par grpc_tools.protoc
+    "build",
+    "dist",
+    ".venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",       # pycodestyle + pyflakes
+    "I",                  # isort
+    "B",                  # bugbear
+    "C4",                 # comprehensions
+    "UP",                 # pyupgrade
+    "SIM",                # simplify
+    "RUF",                # ruff-specific
+    "PL",                 # pylint
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "PLR0913",  # too many arguments (LLM clients en ont souvent)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004"]  # magic numbers OK dans les tests
+
+[tool.mypy]
+python_version = "3.11"
+strict = false  # On commence non-strict, on tightenera plus tard
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+files = [
+    "services/jarvis-orchestrator/src",
+    "services/jarvis-llm/src",
+    "services/jarvis-cu/src",
+    "services/jarvis-tools/src",
+    "services/jarvis-memory/src",
+    "services/jarvis-ui/src",
+    "services/jarvis-safety/src",
+]
+exclude = [
+    "proto_gen/",
+    "build/",
+    ".venv/",
+]
+
+[[tool.mypy.overrides]]
+module = "*.proto_gen.*"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = [
+    "services/jarvis-orchestrator/tests",
+    "services/jarvis-llm/tests",
+    "services/jarvis-cu/tests",
+    "services/jarvis-tools/tests",
+    "services/jarvis-memory/tests",
+    "services/jarvis-ui/tests",
+    "services/jarvis-safety/tests",
+]
+asyncio_mode = "auto"

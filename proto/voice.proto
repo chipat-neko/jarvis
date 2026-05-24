@@ -1,0 +1,27 @@
+﻿// proto/voice.proto
+// Contrat du service jarvis-voice (Rust) : pipeline audio temps reel.
+// TODO: definir les RPC reels en S3-S4 (wake word, STT, VAD, TTS).
+
+syntax = "proto3";
+package jarvis.voice.v1;
+
+import "common.proto";
+
+service VoiceService {
+    // Healthcheck initial.
+    rpc Ping (PingRequest) returns (PingResponse);
+
+    // TODO S3 : rpc StreamAudio (stream AudioChunk) returns (stream Transcript);
+    // TODO S3 : rpc Transcribe (AudioBlob) returns (Transcript);
+    // TODO S4 : rpc Synthesize (SynthesisRequest) returns (stream AudioChunk);
+    // TODO S4 : rpc DetectWakeWord (stream AudioChunk) returns (stream WakeWordEvent);
+}
+
+message PingRequest {
+    string client_id = 1;
+}
+
+message PingResponse {
+    jarvis.common.v1.Status status = 1;
+    string version = 2;
+}

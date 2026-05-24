@@ -1,0 +1,30 @@
+﻿// proto/common.proto
+// Types partages entre tous les services Jarvis.
+//
+// Convention : tout schema doit etre versionne. Ne JAMAIS supprimer un field
+// existant (deprecate via "reserved"). Cf docs/adr/0001-microservices-python-rust.md.
+
+syntax = "proto3";
+package jarvis.common.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Statut generique d'une operation (utilise dans la plupart des reponses).
+message Status {
+    enum Code {
+        UNKNOWN = 0;
+        OK = 1;
+        ERROR = 2;
+        TIMEOUT = 3;
+        UNAUTHORIZED = 4;
+    }
+    Code code = 1;
+    string message = 2;
+}
+
+// Metadonnee de tracing pour correlation inter-services.
+message TraceContext {
+    string trace_id = 1;
+    string span_id = 2;
+    google.protobuf.Timestamp started_at = 3;
+}

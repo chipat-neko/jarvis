@@ -9,6 +9,17 @@
 #   • caches / virtualenvs / artefacts de build
 # ============================================================
 
+# ----- Rust -----
+target/
+**/target/
+*.rlib
+*.rmeta
+*.pdb
+**/*.rs.bk
+Cargo.lock           # workspace de binaires : on commit Cargo.lock seulement dans les services bin individuels
+!services/jarvis-voice/Cargo.lock
+.cargo/config.toml.local
+
 # ----- Python -----
 __pycache__/
 *.py[cod]

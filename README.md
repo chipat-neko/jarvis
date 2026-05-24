@@ -2,35 +2,34 @@
 
 > Assistant vocal personnel style J.A.R.V.I.S — contrôle 100 % du PC, multi-écran, smart home, mémoire long terme.
 
-Projet privé en cours de développement. Plan : MVP fonctionnel en 12 semaines.
+Projet privé en cours de développement. Architecture **microservices Python + Rust avec gRPC** (cf [ADR-0001](docs/adr/0001-microservices-python-rust.md)). MVP cible : mi-septembre 2026 (14-15 semaines).
 
 ---
 
 ## Status
 
 **Sprint en cours : S1 — Setup environnement (foundation)**
-Date de démarrage : 25 mai 2026.
-
-Voir le suivi détaillé sur le board Trello [Jarvis](https://trello.com/b/y65Q5giL/jarvis) (privé).
+Démarrage : 25 mai 2026. Suivi détaillé sur le board Trello [Jarvis](https://trello.com/b/y65Q5giL/jarvis) (privé).
 
 ---
 
 ## Stack technique
 
-| Brique | Choix |
-|---|---|
-| Wake word | openWakeWord (PC) + microWakeWord (ESP32 satellites) |
-| STT | faster-whisper `large-v3-turbo` (CUDA local) |
-| LLM cloud | Anthropic Claude Sonnet 4.6 (orchestration complexe) |
-| LLM local | Qwen 3.5 14B Q4 via Ollama (routing low-cost) |
-| TTS | Chatterbox (GPU local) — fallback Piper si CPU |
-| Pipeline temps réel | Pipecat |
-| Orchestration états | LangGraph + LangSmith observability |
-| Mémoire long terme | Mem0 + sqlite-vec + embeddings BGE-large |
-| Computer Use | Anthropic CU + OmniParser (Set-of-Mark local GPU) |
-| Tools / intégrations | MCP servers (filesystem, github, brave, home-assistant, spotify, gmail, notion) |
-| Smart home | Home Assistant (backbone domotique) |
-| Safety | Kill switch hardware Pi Pico W + audit log SQLite + blacklist scope |
+| Brique | Langage | Choix |
+|---|---|---|
+| Pipeline voice (wake / STT / VAD / TTS / audio I/O) | **Rust** | `jarvis-voice` — openWakeWord + faster-whisper + Silero VAD + Chatterbox + WASAPI loopback |
+| LLM cloud | Python | Anthropic Claude Sonnet 4.6 (orchestration complexe) |
+| LLM local | Python | Qwen 3.5 14B Q4 via Ollama (routing low-cost) |
+| Orchestration états | Python | LangGraph + LangSmith observability |
+| Pipeline temps réel | Python | Pipecat (intégration côté Python, voice pipeline interne en Rust) |
+| Mémoire long terme | Python | Mem0 + sqlite-vec + embeddings BGE-large |
+| Computer Use | Python | Anthropic CU + OmniParser (Set-of-Mark local GPU) |
+| Tools / intégrations | Python | MCP servers (filesystem, github, brave, home-assistant, spotify, gmail, notion) |
+| Smart home | externe | Home Assistant (backbone domotique) |
+| UI / HUD | Python | PySide6 (Qt) + hotkeys + systray |
+| Safety | Python + Rust | Kill switch HW Pi Pico W + audit log SQLite + blacklist + voice confirms |
+
+Communication inter-services : **gRPC sur localhost** (contrats versionnés dans [`proto/`](proto/)).
 
 ---
 
@@ -43,7 +42,7 @@ Voir le suivi détaillé sur le board Trello [Jarvis](https://trello.com/b/y65Q5
 - Écrans : 3 (vertical 1440×2560 + ultrawide 3440×1440 primary + FHD 1920×1080)
 - OS : Windows 11 Pro 24H2
 
-Coûts ops estimés : ~50 €/mois (essentiellement Anthropic API, électricité GPU négligeable).
+Coûts ops estimés : ~50 €/mois (essentiellement Anthropic API).
 
 ---
 
@@ -51,54 +50,69 @@ Coûts ops estimés : ~50 €/mois (essentiellement Anthropic API, électricité
 
 ```
 jarvis/
-├── jarvis/              Package Python principal
-│   ├── core/            Orchestration, config, logging
-│   ├── speech/          Wake word, STT, TTS
-│   ├── nlp/             LLM router, intent parsing
-│   ├── actions/         Skills (home_automation, system, calendar, email, websearch, music, custom/)
-│   ├── utils/           Helpers, validators
-│   └── tests/           Tests unitaires + intégration
-├── config/              Configuration (config.yaml versionné, secrets locaux gitignored)
-├── scripts/             Scripts d'install + ops
-├── requirements.txt     Dépendances Python
-├── README.md            Ce fichier
-├── ARCHITECTURE.md      Détail technique de l'architecture
-└── .gitignore           Tout ce qui ne doit pas être commit
+├── services/                       Microservices (chacun avec son manifest)
+│   ├── jarvis-orchestrator/        Python — point d'entrée principal (LangGraph + Pipecat)
+│   ├── jarvis-voice/               Rust — pipeline voice temps réel (wake, STT, VAD, TTS)
+│   ├── jarvis-llm/                 Python — router local/cloud (Ollama + Anthropic)
+│   ├── jarvis-cu/                  Python — Computer Use + OmniParser
+│   ├── jarvis-tools/               Python — wrappers MCP servers
+│   ├── jarvis-memory/              Python — Mem0 + sqlite-vec
+│   ├── jarvis-ui/                  Python — HUD Qt + hotkeys + tray
+│   └── jarvis-safety/              Python + Rust — kill switch + audit + blacklist
+├── proto/                          Schemas gRPC (source of truth)
+├── infra/                          Docker Compose, systemd, Prometheus, Grafana
+├── docs/
+│   └── adr/                        Architecture Decision Records
+├── .github/workflows/              CI GitHub Actions (à venir)
+├── scripts/                        Scripts dev (codegen, install, ops)
+├── config/                         Config commune (config.example.yaml)
+├── Cargo.toml                      Workspace Rust racine
+├── pyproject.toml                  Workspace Python racine (lint/type/test transverses)
+├── README.md                       Ce fichier
+├── ARCHITECTURE.md                 Détails techniques
+└── .gitignore
 ```
 
-Les modules `voice/`, `llm/`, `memory/`, `cu/`, `tools/`, `ui/`, `safety/`, `integrations/` seront ajoutés au fil des sprints suivants.
+Chaque service Python a son `pyproject.toml` et son arbo `src/jarvis_X/` + `tests/`. Le Rust workspace contient pour l'instant uniquement `jarvis-voice` ; les autres services Rust (partie Rust de `jarvis-safety`) seront ajoutés au fil des sprints.
 
 ---
 
 ## Setup local
 
-> Setup détaillé à venir une fois S1 terminé. Pour l'instant la base est en place mais les modules sont vides.
-
 ### Pré-requis
 
-- Python 3.12+
-- WSL2 + Ubuntu 24.04 LTS (pour certaines dépendances Linux)
-- Docker Desktop
+- Python ≥ 3.11
+- Rust stable ≥ 1.95 (rustup) + Cargo
+- protoc ≥ 28
 - Ollama (https://ollama.com)
 - CUDA 13.2 + driver NVIDIA récent
+- Docker Desktop (pour Home Assistant et observability stack)
 - Compte Anthropic Console (API key)
 
 ### Installation (work-in-progress)
 
-```bash
-git clone git@github.com:chipat-neko/jarvis.git
-cd jarvis
+```powershell
+git clone git@github.com:chipat-neko/jarvis.git d:\jarvis
+cd d:\jarvis
+
+# Python workspace
 python -m venv .venv
-.venv\Scripts\activate    # Windows
-# source .venv/bin/activate  # Linux/WSL
-pip install -r requirements.txt
+.venv\Scripts\activate
+pip install -e .[dev]                                    # tooling transverse (ruff, mypy, pytest)
+pip install -e services/jarvis-orchestrator              # à répéter par service quand on commence
+# (Les autres services seront installables une fois leur code écrit aux sprints S2+)
+
+# Rust workspace
+cargo build --workspace
+
+# Ollama (~5 GB)
 ollama pull qwen2.5:14b-instruct-q4_K_M
 ```
 
 ### Configuration
 
 - Copier `config/config.example.yaml` → `config/local.yaml` (gitignored) et remplir
-- Stocker l'API key Anthropic dans le keyring Windows (pas dans `.env`) :
+- Stocker les secrets dans le keyring Windows (pas dans `.env`) :
   ```python
   import keyring
   keyring.set_password("jarvis", "anthropic_api_key", "sk-ant-...")
@@ -117,18 +131,18 @@ ollama pull qwen2.5:14b-instruct-q4_K_M
 
 ---
 
-## Roadmap (résumé 12 semaines)
+## Roadmap (résumé 14-15 semaines)
 
 | Phase | Semaines | Objectif |
 |---|---|---|
-| Foundation | S1-S2 | Setup environnement, LLM cœur local + cloud |
-| Voice IO | S3-S4 | STT/VAD, wake word, TTS, pipeline Pipecat |
-| Memory + Tools | S5-S6 | Mem0 + sqlite-vec, 8 MCP servers |
+| Foundation | S1-S2 | Setup environnement + toolchain Rust, LLM cœur local + cloud |
+| Voice IO | S3-S4 | STT/VAD, wake word, TTS, pipeline Pipecat (Rust côté `jarvis-voice`) |
+| Memory + Tools | S5-S6 | Mem0 + sqlite-vec, 8 MCP servers, gRPC inter-services |
 | PC Control | S7-S8 | Anthropic CU + OmniParser, Open Interpreter, browser-use |
 | Orchestration | S9-S10 | LangGraph state machines, multi-screen aware |
-| Polish & Safety | S11-S12 | Kill switch, audit log, service Windows, monitoring |
+| Polish & Safety | S11-S12 | Kill switch, audit log, service Windows, observability stack |
 
-Détail dans la card Trello correspondante.
+Détail par sprint dans les cards Trello correspondantes.
 
 ---
 

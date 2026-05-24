@@ -1,0 +1,20 @@
+﻿// proto/cu.proto
+// Contrat du service jarvis-cu : Computer Use (Anthropic CU + OmniParser local).
+// TODO: definir les RPC reels en S7.
+
+syntax = "proto3";
+package jarvis.cu.v1;
+
+import "common.proto";
+
+service CuService {
+    rpc Ping (PingRequest) returns (PingResponse);
+
+    // TODO S7 : rpc Screenshot (ScreenshotRequest) returns (ScreenshotResponse);
+    // TODO S7 : rpc Click (ClickRequest) returns (ActionResult);
+    // TODO S7 : rpc Type (TypeRequest) returns (ActionResult);
+    // TODO S7 : rpc Scroll (ScrollRequest) returns (ActionResult);
+}
+
+message PingRequest { string client_id = 1; }
+message PingResponse { jarvis.common.v1.Status status = 1; string version = 2; }
