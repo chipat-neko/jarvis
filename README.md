@@ -92,8 +92,8 @@ Chaque service Python a son `pyproject.toml` et son arbo `src/jarvis_X/` + `test
 ### Installation (work-in-progress)
 
 ```powershell
-git clone git@github.com:chipat-neko/jarvis.git d:\jarvis
-cd d:\jarvis
+git clone git@github.com:chipat-neko/jarvis.git d:\assistant_ai\jarvis
+cd d:\assistant_ai\jarvis
 
 # Python workspace
 python -m venv .venv
