@@ -1,0 +1,58 @@
+# Jarvis — dépendances Python
+# Pin permissif (>=) en phase de dev. À figer (==) une fois MVP stabilisé.
+
+# --- Sprint 1-2 : LLM cœur (local + cloud) ---
+anthropic>=0.55          # Client officiel Claude API
+ollama>=0.4              # Client Ollama (LLM local Qwen)
+python-dotenv>=1.0       # Chargement variables d'env (developer experience)
+keyring>=25.0            # Stockage sécurisé des secrets dans le keyring OS
+pydantic>=2.0            # Validation typed des configs et payloads
+pyyaml>=6.0              # Chargement config.yaml
+loguru>=0.7              # Logger structuré (plus simple que logging stdlib)
+
+# --- Sprint 3-4 : Voice IO (à activer en S3) ---
+# faster-whisper>=1.0      # STT CUDA optimisé (CTranslate2)
+# silero-vad>=5.0          # VAD léger PyTorch
+# openwakeword>=0.6        # Wake word "Hey Jarvis"
+# sounddevice>=0.4         # Capture audio cross-platform
+# numpy>=1.24
+# torch>=2.5               # PyTorch CUDA 13.2
+# torchaudio>=2.5
+
+# --- Sprint 4 : Pipeline temps réel (à activer en S4) ---
+# pipecat-ai>=0.0.50       # Orchestration voice real-time
+
+# --- Sprint 5 : Memory (à activer en S5) ---
+# mem0ai>=0.1              # Couche mémoire long terme
+# sqlite-vec>=0.1          # Extension SQLite vecteurs
+# sentence-transformers>=3.0  # Embeddings BGE-large
+
+# --- Sprint 6 : MCP servers (à activer en S6) ---
+# mcp>=1.0                 # SDK Python MCP officiel Anthropic
+# httpx>=0.27              # Client HTTP async pour intégrations
+
+# --- Sprint 7-8 : Computer Use (à activer en S7) ---
+# pyautogui>=0.9.54        # Input synthesis (clavier/souris)
+# mss>=10.0                # Capture d'écran multi-monitor
+# pillow>=11.0             # Manipulation images
+# open-interpreter>=0.4    # Exécution shell + Python sandboxée
+# browser-use>=0.1         # Automation browser via Playwright
+# playwright>=1.50
+
+# --- Sprint 9-10 : Orchestration + UI (à activer en S9-10) ---
+# langgraph>=0.3           # State machines pour agents
+# langsmith>=0.3           # Observability cloud
+# pyside6>=6.8             # HUD Qt
+# pynput>=1.7              # Hotkeys globaux
+# pystray>=0.19            # Icône systray
+
+# --- Sprint 11 : Safety (à activer en S11) ---
+# cryptography>=44.0       # Chiffrement local
+# fastapi>=0.115           # Endpoint kill switch local
+# uvicorn>=0.34            # Serveur ASGI léger
+
+# --- Dev / tests ---
+pytest>=8.0
+pytest-asyncio>=0.24
+ruff>=0.8                # Linter + formatter rapide
+mypy>=1.13               # Type checking

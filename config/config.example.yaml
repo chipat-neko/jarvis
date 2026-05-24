@@ -1,0 +1,137 @@
+# ===============================================================
+# Jarvis — config.example.yaml
+# Modèle de configuration à dupliquer en `config/local.yaml`.
+# `config/local.yaml` est gitignored — c'est là que tu mets tes
+# valeurs réelles. Les secrets vont dans le keyring OS, JAMAIS ici.
+# ===============================================================
+
+# --- Identité / utilisateur ---
+user:
+  name: "Noah"                        # Comment Jarvis t'appelle
+  language: "fr-FR"
+  wake_word: "Hey Jarvis"
+
+# --- LLM routing ---
+llm:
+  default_provider: "anthropic"       # "anthropic" | "ollama"
+  routing:
+    intent_simple: "ollama"           # Local pour intents simples
+    conversation: "anthropic"         # Cloud pour conversation libre
+    computer_use: "anthropic"         # CU = obligatoirement Sonnet
+    tool_use: "anthropic"             # Tool calling robuste
+    code_gen: "anthropic"
+
+  anthropic:
+    model: "claude-sonnet-4-6"
+    max_tokens: 4096
+    prompt_caching: true
+    # api_key dans keyring OS, key = "jarvis.anthropic_api_key"
+
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "qwen2.5:14b-instruct-q4_K_M"
+    context_window: 32768
+
+# --- Voice pipeline ---
+voice:
+  stt:
+    backend: "faster-whisper"
+    model: "large-v3-turbo"
+    device: "cuda"                    # "cuda" | "cpu"
+    compute_type: "float16"
+    language: "fr"
+
+  tts:
+    backend: "chatterbox"             # "chatterbox" | "piper"
+    voice_id: "default"
+    device: "cuda"
+
+  vad:
+    backend: "silero"
+    threshold: 0.5
+    min_silence_ms: 800
+
+  wake_word:
+    backend: "openwakeword"
+    model: "hey_jarvis"               # Custom à entraîner
+    threshold: 0.5
+
+  audio:
+    input_device: null                # null = défaut OS
+    output_device: null
+    capture_loopback: true            # WASAPI loopback Win11
+
+# --- Memory ---
+memory:
+  backend: "mem0"
+  db_path: "memory_db/jarvis.sqlite"  # Gitignored
+  embeddings_model: "BAAI/bge-large-en-v1.5"
+  device: "cuda"
+
+# --- Computer Use ---
+computer_use:
+  enabled: false                      # Activer en S7 uniquement
+  omniparser_enabled: true
+  screenshot_dir: "captures/"         # Gitignored
+  scope:
+    # Liste blanche d'apps autorisées (cf safety.blacklist pour le reste)
+    allowed_apps:
+      - "chrome.exe"
+      - "firefox.exe"
+      - "code.exe"
+      - "notepad.exe"
+
+# --- Smart home ---
+home_assistant:
+  enabled: false                      # Activer en S6
+  url: "http://homeassistant.local:8123"
+  # token dans keyring OS, key = "jarvis.ha_token"
+
+# --- MCP servers ---
+mcp:
+  enabled_servers:
+    - "filesystem"
+    - "github"
+    - "brave-search"
+    - "memory"
+    # à activer au fil des sprints :
+    # - "home-assistant"
+    # - "spotify"
+    # - "gmail"
+    # - "notion"
+
+# --- Safety ---
+safety:
+  kill_switch:
+    enabled: true
+    listen_port: 8765
+  audit_log:
+    enabled: true
+    db_path: "audit_log.db"           # Gitignored
+    retention_days: 90
+  confirmations:
+    require_for:
+      - "delete_file"
+      - "send_email"
+      - "transfer_money"
+      - "install_app"
+      - "modify_system_config"
+  blacklist_file: "config/blacklist.yaml"  # À créer en S11
+
+# --- UI / HUD ---
+ui:
+  hud:
+    enabled: false                    # Activer en S10
+    screen: "vertical"                # "vertical" | "main" | "comms"
+    opacity: 0.85
+  hotkeys:
+    push_to_talk: "ctrl+shift+space"
+    panic_hide: "ctrl+shift+h"
+    kill_switch: "ctrl+shift+esc"
+
+# --- Logging ---
+logging:
+  level: "INFO"                       # DEBUG | INFO | WARNING | ERROR
+  file: "logs/jarvis.log"             # Gitignored
+  rotate_mb: 50
+  retention_days: 30

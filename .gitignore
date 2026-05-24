@@ -1,0 +1,249 @@
+# ============================================================
+# Jarvis — .gitignore
+# Tout ce qui ne doit JAMAIS finir sur GitHub :
+#   • secrets / clés API / tokens
+#   • configuration Claude perso (.claude/)
+#   • modèles ML lourds (giga-octets)
+#   • audio brut / recordings utilisateur
+#   • logs / audits / bases mémoire perso
+#   • caches / virtualenvs / artefacts de build
+# ============================================================
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+nosetests.xml
+.hypothesis/
+.ipynb_checkpoints/
+.python-version
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Build / dist
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ----- Secrets, clés, credentials (CRITIQUE) -----
+*.env
+.env
+.env.*
+!.env.example
+secrets.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+credentials.json
+credentials.*
+google_credentials.json
+service_account.json
+*_secret.json
+*_secrets.json
+*.token
+api_keys.json
+api_keys.yaml
+config/secrets.env
+config/google_credentials.json
+config/api_keys.*
+config/*_secret.*
+config/credentials.*
+
+# Anthropic / OpenAI / autres LLM
+.anthropic/
+anthropic_key.txt
+openai_key.txt
+.openai/
+
+# Trello / GitHub tokens
+trello_config.json
+trello_token.txt
+.github_token
+
+# ----- Configuration Claude perso -----
+# Dossier .claude (settings/skills/memory locaux Claude Code)
+.claude/
+.anthropic/
+CLAUDE.md.local
+CLAUDE.local.md
+**/.claude-*
+.claude.json
+
+# ----- Modèles ML (très lourds, à télécharger localement) -----
+*.gguf
+*.onnx
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.tflite
+*.engine
+*.plan
+models/
+data/models/
+checkpoints/
+weights/
+.cache/huggingface/
+huggingface_cache/
+
+# ----- Audio / Recordings utilisateur (privacy) -----
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.opus
+*.m4a
+*.aac
+recordings/
+audio_cache/
+voice_samples/
+wake_word_training/
+
+# ----- Vidéo / Images générées (privacy) -----
+*.mp4
+*.mkv
+*.avi
+*.mov
+screenshots/
+captures/
+
+# ----- Logs / Audit / Mémoire perso -----
+*.log
+logs/
+log/
+audit/
+audit_log.db
+audit_log.sqlite*
+jarvis.log
+jarvis-*.log
+*.log.*
+
+# ----- Bases de données locales -----
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.db-journal
+*.db-wal
+*.db-shm
+mem0_data/
+memory_db/
+chroma_db/
+sqlite_vec_data/
+
+# ----- Cache divers -----
+.cache/
+cache/
+tmp/
+.tmp/
+temp/
+__cache__/
+
+# ----- Conteneurs / runtime -----
+*.pid
+*.sock
+.docker/
+
+# ----- IDE / éditeurs -----
+.vscode/
+!.vscode/settings.shared.json
+.idea/
+*.swp
+*.swo
+*~
+.vs/
+*.sublime-project
+*.sublime-workspace
+.history/
+.zed/
+
+# ----- OS-specific -----
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ----- Linux / WSL -----
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ----- Node (si on ajoute une UI Tauri/Electron plus tard) -----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.turbo/
+.next/
+out/
+
+# ----- Misc -----
+*.tmp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+.local/
+
+# ----- Outils dev générant des artefacts -----
+.benchmarks/
+.dmypy.json
+dmypy.json
+profile_default/
+ipython_config.py
+
+# ----- Spécifique Jarvis : ce qui change selon l'install -----
+# Configuration locale utilisateur (chaque dev/installation a la sienne)
+config/local.yaml
+config/user.yaml
+config/*.local.*
+
+# Données de test / fixtures audio personnelles
+fixtures/personal/
+fixtures/audio_real/
