@@ -21,13 +21,13 @@ import asyncio
 import sys
 import time
 
-sys.stdout.reconfigure(encoding="utf-8")
-sys.stderr.reconfigure(encoding="utf-8")
-
 from jarvis_llm.clients.huggingface_client import HuggingFaceClient
 from jarvis_llm.clients.ollama_client import OllamaClient
 from jarvis_llm.intent_classifier import classify
 from jarvis_llm.router import LlmBackend, LlmRouter
+
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
 
 SYSTEM = (
     "Tu es Jarvis, un assistant personnel concis et précis. Tu réponds en "
@@ -37,7 +37,10 @@ SYSTEM = (
 PROMPTS = [
     ("smalltalk", "Bonjour Jarvis, comment vas-tu aujourd'hui ?"),
     ("simple", "Quelle est la capitale de la France ?"),
-    ("code", "Écris une fonction Python `fib(n)` qui retourne le n-ième nombre de Fibonacci, sans récursion."),
+    (
+        "code",
+        "Écris une fonction Python `fib(n)` qui retourne le n-ième nombre de Fibonacci, sans récursion.",
+    ),
     (
         "reasoning",
         "J'ai 3 pommes. J'en mange 1, puis j'en achète 2. Combien j'en ai au final ? Détaille en 2 phrases max.",
@@ -67,14 +70,14 @@ async def run_one(router: LlmRouter, label: str, prompt: str, index: int, total:
             router.execute(prompt, intent, system=SYSTEM, max_tokens=400),
             timeout=PER_PROMPT_TIMEOUT_S,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         elapsed = time.monotonic() - start
         print(
             f"  TIMEOUT après {elapsed:.1f}s (limite {PER_PROMPT_TIMEOUT_S}s) — prompt skipped",
             flush=True,
         )
         return
-    except Exception as exc:  # noqa: BLE001 — on veut voir tout type d'erreur
+    except Exception as exc:
         elapsed = time.monotonic() - start
         print(f"  ERROR après {elapsed:.1f}s : {type(exc).__name__}: {exc}", flush=True)
         return
@@ -110,9 +113,7 @@ def main() -> int:
         banner(f"E2E test  ::  backend=ollama  model={args.ollama_model}")
     else:
         backend = HuggingFaceClient(model_id=args.hf_model, quantize_4bit=args.quantize_4bit)
-        banner(
-            f"E2E test  ::  backend=hf  model={args.hf_model}  4bit={args.quantize_4bit}"
-        )
+        banner(f"E2E test  ::  backend=hf  model={args.hf_model}  4bit={args.quantize_4bit}")
 
     asyncio.run(amain(backend))
     banner("DONE")
