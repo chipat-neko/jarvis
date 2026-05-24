@@ -103,7 +103,7 @@ async def amain(backend: LlmBackend) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="E2E test runner for Jarvis LLM backends")
     parser.add_argument("--backend", choices=["ollama", "hf"], required=True)
-    parser.add_argument("--ollama-model", default="gpt-oss:120b")
+    parser.add_argument("--ollama-model", default="qwen2.5:14b-instruct-q4_K_M")
     parser.add_argument("--hf-model", default="Qwen/Qwen2.5-Coder-7B-Instruct")
     parser.add_argument("--quantize-4bit", action="store_true")
     args = parser.parse_args()

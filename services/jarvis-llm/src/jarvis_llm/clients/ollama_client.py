@@ -3,9 +3,10 @@
 Implémentation non-streaming via `ollama.AsyncClient`. Streaming arrivera au
 sprint Voice (S3-S4) quand le pipeline Pipecat aura besoin de tokens-as-they-come.
 
-Modèle par défaut : `gpt-oss:120b` (le plus capable déjà installé chez Noah,
-MoE → tient avec offload partiel VRAM/RAM sur RTX 5070 Ti 16GB + 64GB DDR5).
-Override possible via la variable d'env `JARVIS_LLM_MODEL`.
+Modèle par défaut : `qwen2.5:14b-instruct-q4_K_M` (équilibre chat + code,
+9 GB Q4 tient entièrement en VRAM RTX 5070 Ti 16 GB, ~15 tok/s steady).
+Alternatives testées : `gpt-oss:120b` (top qualité mais offload partiel,
+~9 tok/s). Override possible via la variable d'env `JARVIS_LLM_MODEL`.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from dataclasses import dataclass
 import ollama
 
 DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-DEFAULT_LOCAL_MODEL = os.environ.get("JARVIS_LLM_MODEL", "gpt-oss:120b")
+DEFAULT_LOCAL_MODEL = os.environ.get("JARVIS_LLM_MODEL", "qwen2.5:14b-instruct-q4_K_M")
 
 
 @dataclass(frozen=True, slots=True)

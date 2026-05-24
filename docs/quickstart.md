@@ -6,7 +6,7 @@
 
 - Python 3.11
 - Selon le backend choisi :
-  - **Ollama** (recommandé pour démarrer) : déjà installé, au moins `gpt-oss:120b` pulled (Noah a 65 GB dans `D:\model_ollama`)
+  - **Ollama** (recommandé pour démarrer) : déjà installé. Modèle par défaut `qwen2.5:14b-instruct-q4_K_M` (~9 GB, équilibre chat+code, tient en VRAM 16 GB). Alternative `gpt-oss:120b` (65 GB, top qualité mais lent).
   - **HuggingFace** : `torch`, `transformers`, `accelerate` (et `bitsandbytes` si tu veux quantization 4-bit). **Déjà installés** sur ton PC.
 - Repo installé en editable :
 
@@ -21,13 +21,13 @@
 
 ```powershell
 py -3.11 -m orchestrator.chat
-# → gpt-oss:120b via Ollama HTTP
+# → qwen2.5:14b-instruct-q4_K_M via Ollama HTTP (chat + code, ~15 tok/s)
 ```
 
 Changer le modèle Ollama :
 
 ```powershell
-py -3.11 -m orchestrator.chat --ollama-model qwen2.5:14b-instruct-q4_K_M
+py -3.11 -m orchestrator.chat --ollama-model gpt-oss:120b   # top qualité, plus lent
 ```
 
 ### Backend HuggingFace
@@ -78,7 +78,8 @@ py -3.11 -m orchestrator.chat --via-grpc
 **Via Ollama** :
 | Modèle | Taille | Note |
 |---|---|---|
-| `gpt-oss:120b` | 65 GB | Le plus capable. MoE, offload partiel sur 16 GB VRAM (lent mais marche) |
+| `qwen2.5:14b-instruct-q4_K_M` | ~9 GB | **Défaut** — équilibre chat+code, tient en VRAM 16 GB, ~15 tok/s steady |
+| `gpt-oss:120b` | 65 GB | Top qualité absolue. MoE, offload partiel sur 16 GB VRAM (~9 tok/s steady, cold start ~2 min) |
 
 **Via HuggingFace** (`D:\.cache\huggingface\hub`) :
 | Modèle | Taille FP16 | Instruct | Notes |
