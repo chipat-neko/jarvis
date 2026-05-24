@@ -6,7 +6,7 @@
 
 - Python 3.11
 - Selon le backend choisi :
-  - **Ollama** (recommandé pour démarrer) : déjà installé. Modèle par défaut `qwen2.5:14b-instruct-q4_K_M` (~9 GB, équilibre chat+code, tient en VRAM 16 GB). Alternative `gpt-oss:120b` (65 GB, top qualité mais lent).
+  - **Ollama** (recommandé pour démarrer) : déjà installé. Modèle par défaut `qwen3:14b` (~9 GB Q4, ~31 tok/s avec `think=False`, tient en VRAM 16 GB). Alternative `gpt-oss:120b` (65 GB, top qualité absolue, ~9 tok/s steady, ~2 min cold start).
   - **HuggingFace** : `torch`, `transformers`, `accelerate` (et `bitsandbytes` si tu veux quantization 4-bit). **Déjà installés** sur ton PC.
 - Repo installé en editable :
 
@@ -21,14 +21,17 @@
 
 ```powershell
 py -3.11 -m orchestrator.chat
-# → qwen2.5:14b-instruct-q4_K_M via Ollama HTTP (chat + code, ~15 tok/s)
+# → qwen3:14b via Ollama HTTP (chat + code, ~31 tok/s, think=False par défaut)
 ```
 
 Changer le modèle Ollama :
 
 ```powershell
 py -3.11 -m orchestrator.chat --ollama-model gpt-oss:120b   # top qualité, plus lent
+py -3.11 -m orchestrator.chat --ollama-model qwen2.5:14b-instruct-q4_K_M
 ```
+
+**Note thinking models** : Qwen 3 (et DeepSeek-R1, etc.) ont un mode de raisonnement interne `<think>…</think>` qui consomme du `max_tokens` avant la vraie réponse. On le **désactive par défaut** côté `OllamaClient` (`think=False`) pour avoir des réponses directes et rapides. Si tu veux le raisonnement étape par étape, instancie `OllamaClient(model="qwen3:14b", think=True)`.
 
 ### Backend HuggingFace
 
@@ -78,7 +81,8 @@ py -3.11 -m orchestrator.chat --via-grpc
 **Via Ollama** :
 | Modèle | Taille | Note |
 |---|---|---|
-| `qwen2.5:14b-instruct-q4_K_M` | ~9 GB | **Défaut** — équilibre chat+code, tient en VRAM 16 GB, ~15 tok/s steady |
+| `qwen3:14b` | ~9 GB | **Défaut** — Qwen 3 génération récente, ~31 tok/s steady avec `think=False`, 10/10 sur le test hard |
+| `qwen2.5:14b-instruct-q4_K_M` | ~9 GB | Génération précédente Qwen 2.5. ~15 tok/s, qualité légèrement inférieure |
 | `gpt-oss:120b` | 65 GB | Top qualité absolue. MoE, offload partiel sur 16 GB VRAM (~9 tok/s steady, cold start ~2 min) |
 
 **Via HuggingFace** (`D:\.cache\huggingface\hub`) :

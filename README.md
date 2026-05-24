@@ -21,7 +21,7 @@ Démarrage : 25 mai 2026. Suivi détaillé sur le board Trello [Jarvis](https://
 | Brique | Langage | Choix |
 |---|---|---|
 | Pipeline voice (wake / STT / VAD / TTS / audio I/O) | **Rust** | `jarvis-voice` — openWakeWord + faster-whisper + Silero VAD + Chatterbox + WASAPI loopback |
-| LLM | Python | **100% local** : Ollama (`qwen2.5:14b-instruct-q4_K_M` défaut, équilibre chat+code) **ou** HuggingFace transformers (Qwen Coder, Phi-2, etc. en cache local D:) |
+| LLM | Python | **100% local** : Ollama (`qwen3:14b` défaut, ~31 tok/s think=False) **ou** HuggingFace transformers (Qwen Coder, Phi-2, etc. en cache local D:) |
 | Orchestration états | Python | LangGraph + LangSmith observability |
 | Pipeline temps réel | Python | Pipecat (intégration côté Python, voice pipeline interne en Rust) |
 | Mémoire long terme | Python | Mem0 + sqlite-vec + embeddings BGE-large |
@@ -120,8 +120,8 @@ ollama pull qwen2.5:14b-instruct-q4_K_M
 ### Lancer le chat (MVP texte, 100% local)
 
 ```powershell
-py -3.11 -m orchestrator.chat                                  # qwen2.5:14b-instruct-q4 (défaut)
-py -3.11 -m orchestrator.chat --ollama-model gpt-oss:120b      # plus capable mais plus lent
+py -3.11 -m orchestrator.chat                                  # qwen3:14b (défaut)
+py -3.11 -m orchestrator.chat --ollama-model gpt-oss:120b      # top qualité mais 2 min cold start
 py -3.11 -m orchestrator.chat --backend hf                     # backend HuggingFace
 py -3.11 -m orchestrator.chat --via-grpc                       # via jarvis-llm:50052
 ```

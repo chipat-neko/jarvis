@@ -3,10 +3,18 @@
 Implémentation non-streaming via `ollama.AsyncClient`. Streaming arrivera au
 sprint Voice (S3-S4) quand le pipeline Pipecat aura besoin de tokens-as-they-come.
 
-Modèle par défaut : `qwen2.5:14b-instruct-q4_K_M` (équilibre chat + code,
-9 GB Q4 tient entièrement en VRAM RTX 5070 Ti 16 GB, ~15 tok/s steady).
-Alternatives testées : `gpt-oss:120b` (top qualité mais offload partiel,
-~9 tok/s). Override possible via la variable d'env `JARVIS_LLM_MODEL`.
+Modèle par défaut : `qwen3:14b` (génération Qwen 3, ~9 GB Q4 tient en VRAM
+16 GB, ~31 tok/s steady avec `think=False`, qualité au-dessus de Qwen 2.5
+sur les mêmes 10 prompts hard E2E). Alternatives testées :
+- `qwen2.5:14b-instruct-q4_K_M` (15 tok/s, 1 erreur arithmétique observée)
+- `gpt-oss:120b` (9 tok/s steady, top qualité mais 2 min de cold start)
+Override possible via la variable d'env `JARVIS_LLM_MODEL`.
+
+NOTE thinking models : Qwen 3, DeepSeek-R1 et autres "thinking models" génèrent
+des tokens de raisonnement interne (`<think>...</think>`) qui consomment le
+budget `max_tokens` avant la vraie réponse. On désactive le thinking par défaut
+pour avoir des réponses directes utilisables. Activable via `think=True` au
+constructeur si l'utilisateur veut le raisonnement étape par étape.
 """
 
 from __future__ import annotations
@@ -17,7 +25,7 @@ from dataclasses import dataclass
 import ollama
 
 DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-DEFAULT_LOCAL_MODEL = os.environ.get("JARVIS_LLM_MODEL", "qwen2.5:14b-instruct-q4_K_M")
+DEFAULT_LOCAL_MODEL = os.environ.get("JARVIS_LLM_MODEL", "qwen3:14b")
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +43,12 @@ class OllamaClient:
 
     Args:
         host: URL du serveur Ollama (défaut http://127.0.0.1:11434, override via $OLLAMA_HOST).
-        model: nom du modèle à utiliser (défaut gpt-oss:120b, override via $JARVIS_LLM_MODEL).
+        model: nom du modèle à utiliser (défaut qwen2.5:14b-instruct-q4_K_M,
+            override via $JARVIS_LLM_MODEL).
+        think: pour les thinking models (Qwen3, DeepSeek-R1…), True active le
+            raisonnement interne `<think>...</think>` qui consomme du budget tokens
+            avant la vraie réponse. False (défaut) demande la réponse directe.
+            Sur un modèle non-thinking, le param est ignoré côté Ollama.
     """
 
     def __init__(
@@ -43,9 +56,11 @@ class OllamaClient:
         *,
         host: str = DEFAULT_OLLAMA_HOST,
         model: str = DEFAULT_LOCAL_MODEL,
+        think: bool = False,
     ) -> None:
         self.host = host
         self.model = model
+        self.think = think
         self._client = ollama.AsyncClient(host=host)
 
     async def complete(
@@ -79,6 +94,7 @@ class OllamaClient:
             model=self.model,
             messages=messages,
             options={"num_predict": max_tokens},
+            think=self.think,
             stream=False,
         )
 
