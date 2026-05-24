@@ -2,20 +2,27 @@
 
 REPL minimal :
     > tu tapes un message
-    Jarvis: réponse du LLM local (gpt-oss:120b par défaut, override via $JARVIS_LLM_MODEL)
+    Jarvis: réponse du LLM local (Ollama gpt-oss:120b par défaut, ou HF transformers)
 
 Modes :
-- in-process (par défaut) : appel direct du router LlmRouter dans le même process.
-  Pas besoin de démarrer jarvis-llm séparément. Idéal pour test rapide.
+- in-process (par défaut) : appel direct du router dans le même process. Pas
+  besoin de démarrer jarvis-llm séparément. Idéal pour test rapide.
 - gRPC (--via-grpc) : passe par le service jarvis-llm distant (port 50052).
-  Plus proche de l'archi cible mais nécessite de lancer le server avant.
+
+Backends :
+- ollama (défaut) : Ollama HTTP local, modèle gpt-oss:120b par défaut
+- hf : transformers in-process, modèle Qwen/Qwen2.5-Coder-7B-Instruct par défaut
+  (utilise les modèles HF déjà téléchargés dans HF_HOME / D:\\.cache\\huggingface)
 
 Usage :
-    py -3.11 -m orchestrator.chat                   # mode in-process
-    py -3.11 -m orchestrator.chat --model qwen2.5:14b-instruct-q4_K_M
-    py -3.11 -m orchestrator.chat --via-grpc
+    py -3.11 -m orchestrator.chat                                   # ollama gpt-oss:120b
+    py -3.11 -m orchestrator.chat --ollama-model qwen2.5:14b-instruct-q4_K_M
+    py -3.11 -m orchestrator.chat --backend hf                      # HF Qwen2.5-Coder-7B-Instruct
+    py -3.11 -m orchestrator.chat --backend hf --hf-model microsoft/phi-2
+    py -3.11 -m orchestrator.chat --backend hf --quantize-4bit      # 4-bit quantization
+    py -3.11 -m orchestrator.chat --via-grpc                        # via jarvis-llm:50052
 
-Commandes spéciales pendant le REPL :
+Commandes spéciales :
     /quit, /exit, Ctrl+C    -> sortir
     /reset                  -> oublier l'historique (non implémenté dans ce MVP)
     /model                  -> afficher le modèle utilisé
@@ -27,11 +34,13 @@ import argparse
 import asyncio
 import sys
 
+from jarvis_llm.clients.huggingface_client import DEFAULT_HF_MODEL, HuggingFaceClient
 from jarvis_llm.clients.ollama_client import DEFAULT_LOCAL_MODEL, OllamaClient
 from jarvis_llm.intent_classifier import classify
-from jarvis_llm.router import LlmRouter
+from jarvis_llm.router import LlmBackend, LlmRouter
 from orchestrator.clients import llm_client as grpc_llm_client
 
+DEFAULT_BACKEND = "ollama"
 DEFAULT_SYSTEM_PROMPT = (
     "Tu es Jarvis, un assistant personnel concis et précis. Tu réponds en "
     "français (sauf si l'utilisateur écrit en anglais), sans phrases creuses, "
@@ -39,9 +48,21 @@ DEFAULT_SYSTEM_PROMPT = (
 )
 
 
-def _build_in_process_router(*, model: str) -> LlmRouter:
-    ollama_client = OllamaClient(model=model)
-    return LlmRouter(ollama_client=ollama_client)
+def _build_in_process_router(
+    *,
+    backend: str,
+    ollama_model: str,
+    hf_model: str,
+    quantize_4bit: bool,
+) -> LlmRouter:
+    chosen: LlmBackend
+    if backend == "ollama":
+        chosen = OllamaClient(model=ollama_model)
+    elif backend == "hf":
+        chosen = HuggingFaceClient(model_id=hf_model, quantize_4bit=quantize_4bit)
+    else:
+        raise ValueError(f"backend invalide '{backend}'. Choix: ollama, hf")
+    return LlmRouter(backend=chosen)
 
 
 async def _answer_in_process(router: LlmRouter, prompt: str) -> tuple[str, str, str]:
@@ -64,24 +85,41 @@ def _answer_via_grpc(prompt: str, address: str) -> tuple[str, str, str]:
     return result.text, result.model, result.intent
 
 
-def _print_banner(*, via_grpc: bool, model: str) -> None:
+def _print_banner(*, via_grpc: bool, backend: str, model: str) -> None:
     mode = "gRPC (jarvis-llm)" if via_grpc else "in-process"
     print("┌─────────────────────────────────────────────────────────┐")
     print("│  Jarvis MVP — chat texte (100% local)                   │")
-    print(f"│  mode  : {mode:<46}│")
-    print(f"│  model : {model:<46}│")
+    print(f"│  mode    : {mode:<44}│")
+    print(f"│  backend : {backend:<44}│")
+    print(f"│  model   : {model:<44}│")
     print("│  /quit pour sortir, /model pour voir le modèle          │")
     print("└─────────────────────────────────────────────────────────┘")
 
 
-def run_repl(*, via_grpc: bool, model: str, grpc_address: str) -> int:
+def run_repl(
+    *,
+    via_grpc: bool,
+    backend: str,
+    ollama_model: str,
+    hf_model: str,
+    quantize_4bit: bool,
+    grpc_address: str,
+) -> int:
     router: LlmRouter | None = None
     if not via_grpc:
-        router = _build_in_process_router(model=model)
+        router = _build_in_process_router(
+            backend=backend,
+            ollama_model=ollama_model,
+            hf_model=hf_model,
+            quantize_4bit=quantize_4bit,
+        )
 
-    _print_banner(via_grpc=via_grpc, model=model)
+    display_model = ollama_model if backend == "ollama" else hf_model
+    _print_banner(via_grpc=via_grpc, backend=backend, model=display_model)
+    if backend == "hf" and not via_grpc:
+        print("(1er appel HF : chargement modèle, peut prendre 30s à 2min…)", file=sys.stderr)
 
-    last_model = model
+    last_model = display_model
 
     while True:
         try:
@@ -122,17 +160,33 @@ def run_repl(*, via_grpc: bool, model: str, grpc_address: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="REPL de chat Jarvis (MVP texte, 100% local via Ollama)",
+        description="REPL de chat Jarvis (MVP texte, 100% local : Ollama ou HuggingFace)",
     )
     parser.add_argument(
         "--via-grpc",
         action="store_true",
-        help="passe par le service jarvis-llm distant (gRPC) au lieu d'appeler en in-process",
+        help="passe par le service jarvis-llm distant (gRPC)",
     )
     parser.add_argument(
-        "--model",
+        "--backend",
+        choices=["ollama", "hf"],
+        default=DEFAULT_BACKEND,
+        help="backend LLM : ollama (HTTP) ou hf (transformers in-process)",
+    )
+    parser.add_argument(
+        "--ollama-model",
         default=DEFAULT_LOCAL_MODEL,
-        help=f"modèle Ollama à utiliser (défaut {DEFAULT_LOCAL_MODEL}, override via $JARVIS_LLM_MODEL)",
+        help=f"modèle Ollama si --backend ollama (défaut {DEFAULT_LOCAL_MODEL})",
+    )
+    parser.add_argument(
+        "--hf-model",
+        default=DEFAULT_HF_MODEL,
+        help=f"modèle HF si --backend hf (défaut {DEFAULT_HF_MODEL})",
+    )
+    parser.add_argument(
+        "--quantize-4bit",
+        action="store_true",
+        help="quantization 4-bit pour --backend hf (utile sur gros modèles)",
     )
     parser.add_argument(
         "--grpc-address",
@@ -142,7 +196,14 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        return run_repl(via_grpc=args.via_grpc, model=args.model, grpc_address=args.grpc_address)
+        return run_repl(
+            via_grpc=args.via_grpc,
+            backend=args.backend,
+            ollama_model=args.ollama_model,
+            hf_model=args.hf_model,
+            quantize_4bit=args.quantize_4bit,
+            grpc_address=args.grpc_address,
+        )
     except RuntimeError as exc:
         print(f"❌ {exc}", file=sys.stderr)
         return 2

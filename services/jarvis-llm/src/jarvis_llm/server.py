@@ -17,9 +17,12 @@ import grpc
 from loguru import logger
 
 from jarvis_llm import __version__
+from jarvis_llm.clients.huggingface_client import DEFAULT_HF_MODEL, HuggingFaceClient
 from jarvis_llm.clients.ollama_client import DEFAULT_LOCAL_MODEL, OllamaClient
 from jarvis_llm.proto_gen import common_pb2, llm_pb2, llm_pb2_grpc
-from jarvis_llm.router import IntentClass, LlmRouter
+from jarvis_llm.router import IntentClass, LlmBackend, LlmRouter
+
+DEFAULT_BACKEND = "ollama"  # "ollama" ou "hf"
 
 DEFAULT_LLM_ADDRESS = "127.0.0.1:50052"
 GRACEFUL_SHUTDOWN_SECONDS = 5
@@ -42,11 +45,31 @@ _INTENT_TO_PROTO = {
 }
 
 
-def build_router(*, model: str = DEFAULT_LOCAL_MODEL) -> LlmRouter:
-    """Construit un LlmRouter branché sur Ollama local."""
-    ollama_client = OllamaClient(model=model)
-    logger.info("Ollama client OK (host={}, model={})", ollama_client.host, ollama_client.model)
-    return LlmRouter(ollama_client=ollama_client)
+def build_router(
+    *,
+    backend: str = DEFAULT_BACKEND,
+    ollama_model: str = DEFAULT_LOCAL_MODEL,
+    hf_model: str = DEFAULT_HF_MODEL,
+    quantize_4bit: bool = False,
+) -> LlmRouter:
+    """Construit un LlmRouter avec le backend choisi.
+
+    Args:
+        backend: "ollama" (HTTP local) ou "hf" (transformers in-process).
+        ollama_model: nom du modèle Ollama si backend=ollama.
+        hf_model: ID HF si backend=hf.
+        quantize_4bit: 4-bit (bitsandbytes) si backend=hf (utile pour gros modèles).
+    """
+    chosen: LlmBackend
+    if backend == "ollama":
+        chosen = OllamaClient(model=ollama_model)
+        logger.info("Backend Ollama (host={}, model={})", chosen.host, chosen.model)
+    elif backend == "hf":
+        chosen = HuggingFaceClient(model_id=hf_model, quantize_4bit=quantize_4bit)
+        logger.info("Backend HuggingFace (model={}, 4bit={})", chosen.model, quantize_4bit)
+    else:
+        raise ValueError(f"backend invalide '{backend}'. Choix: ollama, hf")
+    return LlmRouter(backend=chosen)
 
 
 class LlmServicer(llm_pb2_grpc.LlmServiceServicer):
@@ -118,10 +141,18 @@ class LlmServicer(llm_pb2_grpc.LlmServiceServicer):
 def serve(
     address: str = DEFAULT_LLM_ADDRESS,
     *,
-    model: str = DEFAULT_LOCAL_MODEL,
+    backend: str = DEFAULT_BACKEND,
+    ollama_model: str = DEFAULT_LOCAL_MODEL,
+    hf_model: str = DEFAULT_HF_MODEL,
+    quantize_4bit: bool = False,
 ) -> None:
     """Démarre le serveur gRPC et bloque jusqu'à interruption."""
-    router = build_router(model=model)
+    router = build_router(
+        backend=backend,
+        ollama_model=ollama_model,
+        hf_model=hf_model,
+        quantize_4bit=quantize_4bit,
+    )
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     llm_pb2_grpc.add_LlmServiceServicer_to_server(LlmServicer(router), server)
     server.add_insecure_port(address)
@@ -135,14 +166,34 @@ def serve(
 
 
 def main() -> int:
-    """Entry point CLI : `python -m jarvis_llm.server` ou `jarvis-llm`."""
+    """Entry point CLI : `python -m jarvis_llm.server`."""
     parser = argparse.ArgumentParser(description="Serveur gRPC jarvis-llm (100% local)")
     parser.add_argument("--address", default=DEFAULT_LLM_ADDRESS, help="host:port d'écoute")
-    parser.add_argument("--model", default=DEFAULT_LOCAL_MODEL, help="modèle Ollama à utiliser")
+    parser.add_argument(
+        "--backend",
+        choices=["ollama", "hf"],
+        default=DEFAULT_BACKEND,
+        help="backend LLM : ollama (HTTP) ou hf (transformers in-process)",
+    )
+    parser.add_argument(
+        "--ollama-model", default=DEFAULT_LOCAL_MODEL, help="modèle Ollama si --backend ollama"
+    )
+    parser.add_argument("--hf-model", default=DEFAULT_HF_MODEL, help="modèle HF si --backend hf")
+    parser.add_argument(
+        "--quantize-4bit",
+        action="store_true",
+        help="quantization 4-bit (bitsandbytes) pour --backend hf (utile pour gros modèles)",
+    )
     args = parser.parse_args()
 
     try:
-        serve(args.address, model=args.model)
+        serve(
+            args.address,
+            backend=args.backend,
+            ollama_model=args.ollama_model,
+            hf_model=args.hf_model,
+            quantize_4bit=args.quantize_4bit,
+        )
     except Exception as exc:
         logger.exception("Erreur fatale : {}", exc)
         return 1

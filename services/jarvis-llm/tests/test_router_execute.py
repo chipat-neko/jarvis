@@ -26,7 +26,7 @@ def _make_ollama_mock(text: str = "local-reply") -> AsyncMock:
 @pytest.mark.asyncio
 async def test_execute_calls_ollama_and_returns_completion_result() -> None:
     ollama = _make_ollama_mock("Bonjour, je suis Jarvis.")
-    router = LlmRouter(ollama_client=ollama)
+    router = LlmRouter(backend=ollama)
 
     result = await router.execute("Salut", IntentClass.CONVERSATIONAL, system="Tu es Jarvis")
 
@@ -42,7 +42,7 @@ async def test_execute_calls_ollama_and_returns_completion_result() -> None:
 @pytest.mark.asyncio
 async def test_execute_preserves_intent_in_result() -> None:
     ollama = _make_ollama_mock()
-    router = LlmRouter(ollama_client=ollama)
+    router = LlmRouter(backend=ollama)
 
     for intent in [
         IntentClass.SIMPLE,
@@ -57,7 +57,7 @@ async def test_execute_preserves_intent_in_result() -> None:
 @pytest.mark.asyncio
 async def test_execute_passes_max_tokens_and_system_through() -> None:
     ollama = _make_ollama_mock()
-    router = LlmRouter(ollama_client=ollama)
+    router = LlmRouter(backend=ollama)
 
     await router.execute(
         "longer prompt",

@@ -1,105 +1,131 @@
 # Quickstart — chat Jarvis 100% local
 
-> Objectif : 5 minutes pour avoir Jarvis qui répond en texte. **Aucune clé API**, **aucun appel cloud**, tout tourne sur ton PC via Ollama.
+> 5 minutes pour avoir Jarvis qui répond en texte. **Aucune clé API**, **aucun appel cloud**. Deux backends au choix : **Ollama** (HTTP) ou **HuggingFace transformers** (in-process).
 
 ## 1. Pré-requis
 
-- Python 3.11 disponible
-- Ollama installé (tu l'as déjà, vérifié `ollama list`)
-- Au moins un modèle pulled. Par défaut on utilise **`gpt-oss:120b`** (le plus capable que tu aies déjà téléchargé, ~65 GB, MoE)
-- Le repo cloné dans `d:\assistant_ai\jarvis` et les services installés :
+- Python 3.11
+- Selon le backend choisi :
+  - **Ollama** (recommandé pour démarrer) : déjà installé, au moins `gpt-oss:120b` pulled (Noah a 65 GB dans `D:\model_ollama`)
+  - **HuggingFace** : `torch`, `transformers`, `accelerate` (et `bitsandbytes` si tu veux quantization 4-bit). **Déjà installés** sur ton PC.
+- Repo installé en editable :
 
   ```powershell
   cd d:\assistant_ai\jarvis
   py -3.11 -m pip install -e services\jarvis-orchestrator -e services\jarvis-llm
   ```
 
-## 2. Vérifier qu'Ollama tourne
+## 2. Lancer le chat
 
-```powershell
-ollama list
-# Doit afficher au moins gpt-oss:120b
-```
-
-Si Ollama n'est pas démarré, lance-le (sous Windows il tourne en service ou via l'app).
-
-## 3. Lancer le chat
-
-### Mode in-process (le plus simple — recommandé pour démarrer)
+### Backend Ollama (défaut)
 
 ```powershell
 py -3.11 -m orchestrator.chat
+# → gpt-oss:120b via Ollama HTTP
 ```
 
-→ ouvre un REPL :
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Jarvis MVP — chat texte (100% local)                   │
-│  mode  : in-process                                     │
-│  model : gpt-oss:120b                                   │
-│  /quit pour sortir, /model pour voir le modèle          │
-└─────────────────────────────────────────────────────────┘
-
-Vous> Bonjour, qui es-tu ?
-Jarvis> Je suis Jarvis, ton assistant personnel local...
-```
-
-### Changer de modèle
-
-Soit en flag :
+Changer le modèle Ollama :
 
 ```powershell
-py -3.11 -m orchestrator.chat --model qwen2.5:14b-instruct-q4_K_M
+py -3.11 -m orchestrator.chat --ollama-model qwen2.5:14b-instruct-q4_K_M
 ```
 
-Soit via env var (utile pour fixer ton choix dans ton profil) :
+### Backend HuggingFace
+
+Utilise les modèles déjà téléchargés dans `D:\.cache\huggingface\hub` (HF_HOME).
 
 ```powershell
-$env:JARVIS_LLM_MODEL = "qwen2.5:14b-instruct-q4_K_M"
-py -3.11 -m orchestrator.chat
+py -3.11 -m orchestrator.chat --backend hf
+# → Qwen/Qwen2.5-Coder-7B-Instruct par défaut (15 GB FP16, tient en VRAM RTX 5070 Ti)
 ```
+
+Choisir un modèle HF spécifique parmi ceux téléchargés :
+
+```powershell
+# Petit et rapide
+py -3.11 -m orchestrator.chat --backend hf --hf-model Qwen/Qwen2.5-Coder-3B-Instruct
+
+# Compact mais correct
+py -3.11 -m orchestrator.chat --backend hf --hf-model microsoft/phi-2
+
+# Gros modèle code (15 GB, défaut)
+py -3.11 -m orchestrator.chat --backend hf --hf-model Qwen/Qwen2.5-Coder-7B-Instruct
+
+# Quantization 4-bit (bitsandbytes) pour faire tenir un gros modèle en VRAM
+py -3.11 -m orchestrator.chat --backend hf --hf-model Qwen/Qwen2.5-Coder-7B-Instruct --quantize-4bit
+```
+
+**Note** : au premier appel HF, le modèle se charge en mémoire (30s à 2min selon taille). Les appels suivants sont rapides.
 
 ### Mode gRPC (architecture cible des microservices)
 
-Dans un terminal :
+Terminal 1 :
 
 ```powershell
-py -3.11 -m jarvis_llm.server
-# log : jarvis-llm listening on 127.0.0.1:50052
+py -3.11 -m jarvis_llm.server                                       # Ollama
+py -3.11 -m jarvis_llm.server --backend hf                          # HF
+py -3.11 -m jarvis_llm.server --backend hf --quantize-4bit
 ```
 
-Dans un autre :
+Terminal 2 :
 
 ```powershell
 py -3.11 -m orchestrator.chat --via-grpc
 ```
 
-## 4. Classification d'intent (observability)
+## 3. Modèles disponibles sur ton PC (détectés au 2026-05-24)
 
-À chaque tour, Jarvis classifie ta requête en `SIMPLE` / `CONVERSATIONAL` / `COMPLEX` / `CODE` / `TOOL_USE` (regex mots-clé FR/EN). Pour l'instant tous les intents tapent le même modèle, mais l'intent s'affiche en stderr à chaque réponse :
+**Via Ollama** :
+| Modèle | Taille | Note |
+|---|---|---|
+| `gpt-oss:120b` | 65 GB | Le plus capable. MoE, offload partiel sur 16 GB VRAM (lent mais marche) |
+
+**Via HuggingFace** (`D:\.cache\huggingface\hub`) :
+| Modèle | Taille FP16 | Instruct | Notes |
+|---|---|---|---|
+| `Qwen/Qwen2.5-Coder-7B-Instruct` | 15.2 GB | ✅ | **Défaut HF**, tient en VRAM 16 GB en BF16 |
+| `Qwen/Qwen2.5-Coder-3B-Instruct` | 6.2 GB | ✅ | Excellent compromis vitesse/qualité |
+| `microsoft/phi-2` | 5.6 GB | ✅ | Plus petit, plus rapide |
+| `Qwen/Qwen2.5-Coder-1.5B` | 3.1 GB | ❌ (base) | Trop léger pour chat |
+| `Qwen/Qwen2.5-Coder-0.5B` | 1.0 GB | ❌ (base) | Très léger |
+| `deepseek-ai/DeepSeek-Coder-6.7b-base` | 13.5 GB | ❌ (base) | Non-instruct, peu adapté chat |
+
+Ajouter un nouveau modèle HF : juste `git clone` ou utiliser `huggingface-cli download <model-id>` — il sera détecté automatiquement.
+
+## 4. Fixer ton modèle par défaut
+
+Via env var (utile pour ton profil PowerShell) :
+
+```powershell
+$env:JARVIS_LLM_MODEL = "qwen2.5:14b-instruct-q4_K_M"   # défaut backend ollama
+$env:JARVIS_HF_MODEL = "Qwen/Qwen2.5-Coder-3B-Instruct"  # défaut backend hf
+```
+
+## 5. Classification d'intent (observability)
+
+À chaque tour, Jarvis classifie ta requête en `SIMPLE` / `CONVERSATIONAL` / `COMPLEX` / `CODE` / `TOOL_USE` (regex mots-clé FR/EN). Pour l'instant tous les intents tapent le même modèle, mais l'intent s'affiche en stderr :
 
 ```
 Jarvis> ...
-  ↳ model=gpt-oss:120b intent=code
+  ↳ model=Qwen/Qwen2.5-Coder-7B-Instruct intent=code
 ```
 
-À terme (S2+) on pourra router vers des modèles différents selon l'intent (petit modèle rapide pour conversation, gros pour code).
+À terme on pourra router vers des modèles différents selon l'intent (petit modèle rapide pour conversation, gros pour code).
 
-## 5. Limites connues (à améliorer)
+## 6. Limites connues
 
-- **Pas d'historique conversation** dans ce MVP — chaque tour est indépendant.
-- **Pas de streaming** — la réponse arrive d'un coup. Streaming arrive avec le pipeline voice (S3-S4).
-- **Pas de tool use réel** — quand tu demandes "ouvre Spotify", il classera TOOL_USE mais sans capacité d'agir. C'est S5+ (MCP).
-- **gpt-oss:120b est lent sur ton RTX 5070 Ti 16GB** (offload partiel VRAM/RAM). Si trop lent, change pour un modèle qui tient en VRAM (`qwen2.5:14b-instruct-q4_K_M` ~9 GB → ~50-80 tok/s).
-- **Intent classifier basique** — regex mots-clé. Améliorable avec embeddings.
+- **Pas d'historique conversation** — chaque tour indépendant.
+- **Pas de streaming** — réponse d'un coup.
+- **Pas de tool use réel** — TOOL_USE classé mais sans capacité d'agir (S5+).
+- **HF charge le modèle à chaque démarrage** — pas de persistance entre runs. Le mode `--via-grpc` permet de garder le modèle chargé via le service jarvis-llm.
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | Problème | Solution |
 |---|---|
-| `httpx.ConnectError` au démarrage | Ollama ne tourne pas. Lance l'app Ollama ou `ollama serve`. |
-| `model "gpt-oss:120b" not found` | `ollama pull gpt-oss:120b` ou choisis-en un autre via `--model`. |
-| Réponse super lente | Modèle trop gros pour la VRAM. Bascule sur `qwen2.5:14b-instruct-q4_K_M` ou plus petit. |
-| `ModuleNotFoundError: jarvis_llm` | Pas installé en editable. `py -3.11 -m pip install -e services\jarvis-llm` |
-| `pytest` warning asyncio | `py -3.11 -m pip install pytest-asyncio` |
+| `httpx.ConnectError` (Ollama) | Ollama ne tourne pas. Lance l'app Ollama. |
+| `model not found` (Ollama) | `ollama pull <model>` ou choisis-en un dispo (`ollama list`). |
+| `OutOfMemoryError` (HF) | Modèle trop gros. Active `--quantize-4bit` ou prends un plus petit. |
+| `ModuleNotFoundError: torch` | Pour le backend HF. `py -3.11 -m pip install torch transformers accelerate` |
+| HF lent au démarrage | Normal au 1er load (30s à 2min). Utilise `--via-grpc` pour garder le modèle chaud. |
+| `Some parameters are on the meta device` | Accelerate a offload sur CPU. Normal. Active `--quantize-4bit` pour tout mettre en VRAM. |

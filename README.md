@@ -21,7 +21,7 @@ Démarrage : 25 mai 2026. Suivi détaillé sur le board Trello [Jarvis](https://
 | Brique | Langage | Choix |
 |---|---|---|
 | Pipeline voice (wake / STT / VAD / TTS / audio I/O) | **Rust** | `jarvis-voice` — openWakeWord + faster-whisper + Silero VAD + Chatterbox + WASAPI loopback |
-| LLM | Python | **100% local** via Ollama (défaut `gpt-oss:120b`, override `$JARVIS_LLM_MODEL`) |
+| LLM | Python | **100% local** : Ollama (`gpt-oss:120b` défaut) **ou** HuggingFace transformers (Qwen Coder, Phi-2, etc. en cache local D:) |
 | Orchestration états | Python | LangGraph + LangSmith observability |
 | Pipeline temps réel | Python | Pipecat (intégration côté Python, voice pipeline interne en Rust) |
 | Mémoire long terme | Python | Mem0 + sqlite-vec + embeddings BGE-large |

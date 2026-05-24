@@ -15,6 +15,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Backend HuggingFace optionnel (lourd : torch + transformers + accelerate).
+# Pas requis pour l'option par defaut Ollama. Le code est ecrit pour lazy-importer
+# ces modules au seul appel HF, donc l'install par defaut reste legere.
+hf = [
+    "torch>=2.0",
+    "transformers>=4.40",
+    "accelerate>=0.30",
+    "safetensors>=0.4",
+    # bitsandbytes pour quantization 4-bit (optionnel dans l'optionnel — uniquement Linux/Windows x64)
+    "bitsandbytes>=0.43; platform_system != 'Darwin'",
+]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 
 [build-system]

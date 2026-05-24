@@ -26,13 +26,22 @@ def test_ollama_client_importable() -> None:
     assert ollama.model
 
 
-def test_router_rejects_none_client() -> None:
+def test_router_rejects_none_backend() -> None:
     import pytest
 
     from jarvis_llm.router import LlmRouter
 
-    with pytest.raises(ValueError, match="ollama_client requis"):
-        LlmRouter(ollama_client=None)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="backend requis"):
+        LlmRouter(backend=None)  # type: ignore[arg-type]
+
+
+def test_huggingface_client_importable() -> None:
+    from jarvis_llm.clients.huggingface_client import HuggingFaceClient
+
+    # Pas de chargement (lazy) — on vérifie juste l'attribut.
+    client = HuggingFaceClient(model_id="Qwen/Qwen2.5-Coder-3B-Instruct")
+    assert client.model == "Qwen/Qwen2.5-Coder-3B-Instruct"
+    assert client.quantize_4bit is False
 
 
 def test_server_module_importable() -> None:
