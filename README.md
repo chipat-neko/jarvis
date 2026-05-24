@@ -109,9 +109,11 @@ ollama pull qwen2.5:14b-instruct-q4_K_M
 ## Documentation interne
 
 - **Blueprint final** : `d:/assistant_ai/recherche/100-jarvis-final-blueprint/`
-- **Roadmap 12 semaines** : `d:/assistant_ai/recherche/99-jarvis-roadmap/`
+- **Roadmap 14-15 semaines** : `d:/assistant_ai/recherche/99-jarvis-roadmap/`
 - **Comparatif hardware** : `d:/assistant_ai/recherche/hardware-comparatif-noah/`
 - **100 sujets de recherche** : `d:/assistant_ai/recherche/index.html`
+- **Architecture Decision Records (ADR)** : [`docs/adr/`](docs/adr/) — décisions structurantes versionnées
+  - [ADR-0001 : Microservices Python + Rust + gRPC](docs/adr/0001-microservices-python-rust.md)
 
 ---
 
