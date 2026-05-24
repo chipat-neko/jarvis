@@ -1,54 +1,29 @@
-# Quickstart — chat Jarvis en local
+# Quickstart — chat Jarvis 100% local
 
-> Objectif : 5 minutes pour avoir Jarvis qui répond en texte. Pas de voice, pas de Computer Use — juste un REPL qui parle à Sonnet 4.6 (et/ou Qwen 14B local si tu as Ollama).
+> Objectif : 5 minutes pour avoir Jarvis qui répond en texte. **Aucune clé API**, **aucun appel cloud**, tout tourne sur ton PC via Ollama.
 
 ## 1. Pré-requis
 
-- Python 3.11 disponible (le repo est testé sur 3.11)
-- Le repo cloné dans `d:\assistant_ai\jarvis` et les services Python installés en editable :
+- Python 3.11 disponible
+- Ollama installé (tu l'as déjà, vérifié `ollama list`)
+- Au moins un modèle pulled. Par défaut on utilise **`gpt-oss:120b`** (le plus capable que tu aies déjà téléchargé, ~65 GB, MoE)
+- Le repo cloné dans `d:\assistant_ai\jarvis` et les services installés :
 
   ```powershell
   cd d:\assistant_ai\jarvis
   py -3.11 -m pip install -e services\jarvis-orchestrator -e services\jarvis-llm
   ```
 
-- Une clé API Anthropic (https://console.anthropic.com/). Côté gratuit/payant — tu auras besoin d'au moins quelques crédits pour tester.
-
-## 2. Stocker la clé API dans le keyring Windows
-
-Une fois pour toutes :
+## 2. Vérifier qu'Ollama tourne
 
 ```powershell
-py -3.11 -File scripts\setup_keyring.ps1
-# (te demande la clé puis la stocke dans Windows Credential Manager
-#  sous service="jarvis", username="anthropic_api_key")
+ollama list
+# Doit afficher au moins gpt-oss:120b
 ```
 
-Ou en une ligne :
+Si Ollama n'est pas démarré, lance-le (sous Windows il tourne en service ou via l'app).
 
-```powershell
-py -3.11 -c "import keyring; keyring.set_password('jarvis', 'anthropic_api_key', 'sk-ant-VOTRE-CLE')"
-```
-
-Vérification :
-
-```powershell
-py -3.11 -c "from jarvis_llm.secrets import get_anthropic_api_key; print('OK' if get_anthropic_api_key() else 'INTROUVABLE')"
-```
-
-Alternative sans keyring : variable d'env `ANTHROPIC_API_KEY` (mais le keyring est plus sûr).
-
-## 3. (Optionnel) Ollama pour le mode local
-
-```powershell
-# Télécharge depuis https://ollama.com puis :
-ollama pull qwen2.5:14b-instruct-q4_K_M
-ollama serve  # tourne en arrière-plan, déjà fait par défaut sur Win
-```
-
-Si Ollama n'est pas dispo, Jarvis fallback automatiquement sur le cloud.
-
-## 4. Lancer le chat
+## 3. Lancer le chat
 
 ### Mode in-process (le plus simple — recommandé pour démarrer)
 
@@ -60,34 +35,38 @@ py -3.11 -m orchestrator.chat
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Jarvis MVP — chat texte                                │
-│  mode     : in-process                                  │
-│  backends : cloud Sonnet 4.6, local Qwen 14B            │
-│  /quit pour sortir, /reset pour effacer l'historique    │
+│  Jarvis MVP — chat texte (100% local)                   │
+│  mode  : in-process                                     │
+│  model : gpt-oss:120b                                   │
+│  /quit pour sortir, /model pour voir le modèle          │
 └─────────────────────────────────────────────────────────┘
 
 Vous> Bonjour, qui es-tu ?
-Jarvis [cloud]> Je suis Jarvis, ton assistant personnel...
+Jarvis> Je suis Jarvis, ton assistant personnel local...
 ```
 
-### Forcer le cloud
+### Changer de modèle
+
+Soit en flag :
 
 ```powershell
-py -3.11 -m orchestrator.chat --no-local
+py -3.11 -m orchestrator.chat --model qwen2.5:14b-instruct-q4_K_M
 ```
 
-### Forcer le local
+Soit via env var (utile pour fixer ton choix dans ton profil) :
 
 ```powershell
-py -3.11 -m orchestrator.chat --no-cloud
+$env:JARVIS_LLM_MODEL = "qwen2.5:14b-instruct-q4_K_M"
+py -3.11 -m orchestrator.chat
 ```
 
-### Mode gRPC (architecture cible)
+### Mode gRPC (architecture cible des microservices)
 
 Dans un terminal :
 
 ```powershell
 py -3.11 -m jarvis_llm.server
+# log : jarvis-llm listening on 127.0.0.1:50052
 ```
 
 Dans un autre :
@@ -96,31 +75,31 @@ Dans un autre :
 py -3.11 -m orchestrator.chat --via-grpc
 ```
 
-## 5. Comprendre le routing
+## 4. Classification d'intent (observability)
 
-À chaque tour, Jarvis :
+À chaque tour, Jarvis classifie ta requête en `SIMPLE` / `CONVERSATIONAL` / `COMPLEX` / `CODE` / `TOOL_USE` (regex mots-clé FR/EN). Pour l'instant tous les intents tapent le même modèle, mais l'intent s'affiche en stderr à chaque réponse :
 
-1. Classe ta requête en intent (`SIMPLE` / `CONVERSATIONAL` / `COMPLEX` / `CODE` / `TOOL_USE`)
-2. Décide local ou cloud :
-   - `CODE` / `COMPLEX` / `TOOL_USE` → cloud Sonnet 4.6
-   - `SIMPLE` / `CONVERSATIONAL` → local Qwen 14B (si dispo, sinon cloud)
-   - prompt > ~2000 tokens estimés → cloud (Qwen perd en qualité sur long contexte)
+```
+Jarvis> ...
+  ↳ model=gpt-oss:120b intent=code
+```
 
-Tu peux voir la cible utilisée affichée à chaque réponse : `Jarvis [cloud]>` ou `Jarvis [local]>`. La raison du routing s'affiche en stderr.
+À terme (S2+) on pourra router vers des modèles différents selon l'intent (petit modèle rapide pour conversation, gros pour code).
 
-## 6. Limites connues (à améliorer plus tard)
+## 5. Limites connues (à améliorer)
 
-- **Pas d'historique conversation** dans ce MVP — chaque tour est indépendant. La prochaine itération (S2-S3) ajoutera un context window simple.
+- **Pas d'historique conversation** dans ce MVP — chaque tour est indépendant.
 - **Pas de streaming** — la réponse arrive d'un coup. Streaming arrive avec le pipeline voice (S3-S4).
-- **Pas de tool use** — quand tu demandes "ouvre Spotify", il classera l'intent en TOOL_USE et appellera Sonnet, mais sans capacité d'agir. C'est S5+ (MCP).
-- **Intent classifier basique** — regex mots-clé. Améliorable avec embeddings plus tard.
+- **Pas de tool use réel** — quand tu demandes "ouvre Spotify", il classera TOOL_USE mais sans capacité d'agir. C'est S5+ (MCP).
+- **gpt-oss:120b est lent sur ton RTX 5070 Ti 16GB** (offload partiel VRAM/RAM). Si trop lent, change pour un modèle qui tient en VRAM (`qwen2.5:14b-instruct-q4_K_M` ~9 GB → ~50-80 tok/s).
+- **Intent classifier basique** — regex mots-clé. Améliorable avec embeddings.
 
-## 7. Troubleshooting
+## 6. Troubleshooting
 
 | Problème | Solution |
 |---|---|
-| `Aucun backend LLM disponible` | Ni clé Anthropic ni Ollama. Configure au moins l'un des deux. |
-| `RuntimeError: Clé API Anthropic introuvable` | Re-stocke la clé (étape 2). |
-| `httpx.ConnectError` côté Ollama | `ollama serve` ne tourne pas. Démarre-le ou lance avec `--no-local`. |
-| `ModuleNotFoundError: jarvis_llm` | Pas installé en editable. Refais l'étape 1. |
-| `pytest` échoue avec asyncio | `py -3.11 -m pip install pytest-asyncio` |
+| `httpx.ConnectError` au démarrage | Ollama ne tourne pas. Lance l'app Ollama ou `ollama serve`. |
+| `model "gpt-oss:120b" not found` | `ollama pull gpt-oss:120b` ou choisis-en un autre via `--model`. |
+| Réponse super lente | Modèle trop gros pour la VRAM. Bascule sur `qwen2.5:14b-instruct-q4_K_M` ou plus petit. |
+| `ModuleNotFoundError: jarvis_llm` | Pas installé en editable. `py -3.11 -m pip install -e services\jarvis-llm` |
+| `pytest` warning asyncio | `py -3.11 -m pip install pytest-asyncio` |

@@ -1,17 +1,22 @@
-"""Wrapper Ollama pour Jarvis (LLM local Qwen 14B).
+"""Wrapper Ollama pour Jarvis (seul backend LLM — 100% local).
 
 Implémentation non-streaming via `ollama.AsyncClient`. Streaming arrivera au
 sprint Voice (S3-S4) quand le pipeline Pipecat aura besoin de tokens-as-they-come.
+
+Modèle par défaut : `gpt-oss:120b` (le plus capable déjà installé chez Noah,
+MoE → tient avec offload partiel VRAM/RAM sur RTX 5070 Ti 16GB + 64GB DDR5).
+Override possible via la variable d'env `JARVIS_LLM_MODEL`.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 import ollama
 
-DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434"
-DEFAULT_LOCAL_MODEL = "qwen2.5:14b-instruct-q4_K_M"
+DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+DEFAULT_LOCAL_MODEL = os.environ.get("JARVIS_LLM_MODEL", "gpt-oss:120b")
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,8 +33,8 @@ class OllamaClient:
     """Client async vers une instance Ollama locale.
 
     Args:
-        host: URL du serveur Ollama (défaut http://127.0.0.1:11434).
-        model: nom du modèle à utiliser (défaut Qwen 14B Q4 instruct).
+        host: URL du serveur Ollama (défaut http://127.0.0.1:11434, override via $OLLAMA_HOST).
+        model: nom du modèle à utiliser (défaut gpt-oss:120b, override via $JARVIS_LLM_MODEL).
     """
 
     def __init__(

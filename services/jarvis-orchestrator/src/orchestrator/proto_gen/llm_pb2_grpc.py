@@ -56,8 +56,8 @@ class LlmServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Complete(self, request, context):
-        """Complete : appel non-streaming. Le service decide local vs cloud selon
-        l'intent + la longueur du prompt + les clients disponibles.
+        """Complete : appel non-streaming. Le service appelle Ollama avec le modele
+        configure (defaut gpt-oss:120b, override via $JARVIS_LLM_MODEL).
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

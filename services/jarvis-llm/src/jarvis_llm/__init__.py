@@ -1,7 +1,7 @@
-"""jarvis-llm : service de routing LLM hybride (local Ollama + cloud Anthropic).
+"""jarvis-llm : service LLM 100% local via Ollama.
 
-Squelette S2 — pour l'instant seul Ping est implémenté côté gRPC. Les vrais RPC
-(Complete, Stream, RouteIntent) arrivent au sprint S2 (1er juin 2026).
+Modèle par défaut : gpt-oss:120b (override via $JARVIS_LLM_MODEL).
+RPC implémentés : Ping + Complete. Streaming arrivera plus tard.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

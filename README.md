@@ -21,12 +21,11 @@ Démarrage : 25 mai 2026. Suivi détaillé sur le board Trello [Jarvis](https://
 | Brique | Langage | Choix |
 |---|---|---|
 | Pipeline voice (wake / STT / VAD / TTS / audio I/O) | **Rust** | `jarvis-voice` — openWakeWord + faster-whisper + Silero VAD + Chatterbox + WASAPI loopback |
-| LLM cloud | Python | Anthropic Claude Sonnet 4.6 (orchestration complexe) |
-| LLM local | Python | Qwen 3.5 14B Q4 via Ollama (routing low-cost) |
+| LLM | Python | **100% local** via Ollama (défaut `gpt-oss:120b`, override `$JARVIS_LLM_MODEL`) |
 | Orchestration états | Python | LangGraph + LangSmith observability |
 | Pipeline temps réel | Python | Pipecat (intégration côté Python, voice pipeline interne en Rust) |
 | Mémoire long terme | Python | Mem0 + sqlite-vec + embeddings BGE-large |
-| Computer Use | Python | Anthropic CU + OmniParser (Set-of-Mark local GPU) |
+| Computer Use | Python | OmniParser local GPU (Set-of-Mark) + pyautogui (à coder, S7-S8) |
 | Tools / intégrations | Python | MCP servers (filesystem, github, brave, home-assistant, spotify, gmail, notion) |
 | Smart home | externe | Home Assistant (backbone domotique) |
 | UI / HUD | Python | PySide6 (Qt) + hotkeys + systray |
@@ -45,7 +44,7 @@ Communication inter-services : **gRPC sur localhost** (contrats versionnés dans
 - Écrans : 3 (vertical 1440×2560 + ultrawide 3440×1440 primary + FHD 1920×1080)
 - OS : Windows 11 Pro 24H2
 
-Coûts ops estimés : ~50 €/mois (essentiellement Anthropic API).
+Coûts ops estimés : **~0 €/mois** (100% local, juste l'électricité). Anthropic API retiré du stack — Jarvis tourne entièrement sur le PC de Noah.
 
 ---
 
@@ -56,7 +55,7 @@ jarvis/
 ├── services/                       Microservices (chacun avec son manifest)
 │   ├── jarvis-orchestrator/        Python — point d'entrée principal (LangGraph + Pipecat)
 │   ├── jarvis-voice/               Rust — pipeline voice temps réel (wake, STT, VAD, TTS)
-│   ├── jarvis-llm/                 Python — router local/cloud (Ollama + Anthropic)
+│   ├── jarvis-llm/                 Python — wrapper Ollama (100% local)
 │   ├── jarvis-cu/                  Python — Computer Use + OmniParser
 │   ├── jarvis-tools/               Python — wrappers MCP servers
 │   ├── jarvis-memory/              Python — Mem0 + sqlite-vec
@@ -90,7 +89,7 @@ Chaque service Python a son `pyproject.toml` et son arbo `src/jarvis_X/` + `test
 - Ollama (https://ollama.com)
 - CUDA 13.2 + driver NVIDIA récent
 - Docker Desktop (pour Home Assistant et observability stack)
-- Compte Anthropic Console (API key)
+- Aucune clé API requise (100% local)
 
 ### Installation (work-in-progress)
 
@@ -116,21 +115,17 @@ ollama pull qwen2.5:14b-instruct-q4_K_M
 ### Configuration
 
 - Copier `config/config.example.yaml` → `config/local.yaml` (gitignored) et remplir
-- Stocker les secrets dans le keyring Windows (pas dans `.env`) :
-  ```powershell
-  py -3.11 -File scripts\setup_keyring.ps1
-  # ou en one-liner :
-  py -3.11 -c "import keyring; keyring.set_password('jarvis', 'anthropic_api_key', 'sk-ant-...')"
-  ```
+- **Aucune clé API requise** : Jarvis tourne 100% local via Ollama. Privacy by default.
 
-### Lancer le chat (MVP texte)
+### Lancer le chat (MVP texte, 100% local)
 
 ```powershell
-py -3.11 -m orchestrator.chat              # in-process, cloud+local
-py -3.11 -m orchestrator.chat --no-local   # cloud Anthropic uniquement
-py -3.11 -m orchestrator.chat --no-cloud   # local Ollama uniquement
-py -3.11 -m orchestrator.chat --via-grpc   # passe par jarvis-llm (port 50052)
+py -3.11 -m orchestrator.chat                                      # gpt-oss:120b (défaut)
+py -3.11 -m orchestrator.chat --model qwen2.5:14b-instruct-q4_K_M  # plus rapide
+py -3.11 -m orchestrator.chat --via-grpc                           # via jarvis-llm:50052
 ```
+
+Override permanent du modèle : `$env:JARVIS_LLM_MODEL = "..."`.
 
 Guide complet : [`docs/quickstart.md`](docs/quickstart.md).
 
@@ -154,7 +149,7 @@ Guide complet : [`docs/quickstart.md`](docs/quickstart.md).
 | Foundation | S1-S2 | Setup environnement + toolchain Rust, LLM cœur local + cloud |
 | Voice IO | S3-S4 | STT/VAD, wake word, TTS, pipeline Pipecat (Rust côté `jarvis-voice`) |
 | Memory + Tools | S5-S6 | Mem0 + sqlite-vec, 8 MCP servers, gRPC inter-services |
-| PC Control | S7-S8 | Anthropic CU + OmniParser, Open Interpreter, browser-use |
+| PC Control | S7-S8 | OmniParser local + LLM local Ollama (vision-capable), Open Interpreter, browser-use |
 | Orchestration | S9-S10 | LangGraph state machines, multi-screen aware |
 | Polish & Safety | S11-S12 | Kill switch, audit log, service Windows, observability stack |
 

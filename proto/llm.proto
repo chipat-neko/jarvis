@@ -1,5 +1,5 @@
-﻿// proto/llm.proto
-// Contrat du service jarvis-llm : routing local (Ollama Qwen) + cloud (Anthropic Sonnet).
+// proto/llm.proto
+// Contrat du service jarvis-llm : 100% local via Ollama.
 
 syntax = "proto3";
 package jarvis.llm.v1;
@@ -9,33 +9,26 @@ import "common.proto";
 service LlmService {
     rpc Ping (PingRequest) returns (PingResponse);
 
-    // Complete : appel non-streaming. Le service decide local vs cloud selon
-    // l'intent + la longueur du prompt + les clients disponibles.
+    // Complete : appel non-streaming. Le service appelle Ollama avec le modele
+    // configure (defaut gpt-oss:120b, override via $JARVIS_LLM_MODEL).
     rpc Complete (CompleteRequest) returns (CompleteResponse);
 
     // TODO sprint suivant : rpc Stream (CompleteRequest) returns (stream CompletionChunk);
-    // TODO sprint suivant : rpc RouteIntent (IntentRequest) returns (RouteDecision);
 }
 
 message PingRequest { string client_id = 1; }
 message PingResponse { jarvis.common.v1.Status status = 1; string version = 2; }
 
-// Classification grossiere de l'intent utilisateur. Doit rester aligne avec
-// l'enum jarvis_llm.router.IntentClass cote Python.
+// Classification grossiere de l'intent utilisateur. Sert pour l'observability
+// (logging) et potentiellement un futur routing multi-modeles. Doit rester
+// aligne avec l'enum jarvis_llm.router.IntentClass cote Python.
 enum IntentClass {
     INTENT_UNSPECIFIED = 0;
-    INTENT_SIMPLE = 1;          // FAQ, status, conversion -> local
-    INTENT_CONVERSATIONAL = 2;  // small talk -> local
-    INTENT_COMPLEX = 3;         // reasoning, analyse -> cloud
-    INTENT_CODE = 4;            // generation/explication code -> cloud
-    INTENT_TOOL_USE = 5;        // tools multiples -> cloud
-}
-
-// Cible effective decidee par le routeur.
-enum RouteTarget {
-    TARGET_UNSPECIFIED = 0;
-    TARGET_LOCAL = 1;
-    TARGET_CLOUD = 2;
+    INTENT_SIMPLE = 1;          // FAQ, status, conversion
+    INTENT_CONVERSATIONAL = 2;  // small talk
+    INTENT_COMPLEX = 3;         // reasoning, analyse
+    INTENT_CODE = 4;            // generation/explication code
+    INTENT_TOOL_USE = 5;        // tools multiples (MCP)
 }
 
 message CompleteRequest {
@@ -49,9 +42,9 @@ message CompleteRequest {
 message CompleteResponse {
     jarvis.common.v1.Status status = 1;
     string text = 2;
-    RouteTarget target = 3;
-    string model = 4;
+    string model = 3;            // nom du modele Ollama qui a repondu
+    IntentClass intent = 4;      // intent loggé
     int32 input_tokens = 5;
     int32 output_tokens = 6;
-    string reason = 7;           // raison du routing (debug / observability)
+    int32 estimated_prompt_tokens = 7;
 }

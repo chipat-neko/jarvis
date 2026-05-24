@@ -1,12 +1,12 @@
-"""Routeur LLM hybride local/cloud.
+"""Routeur LLM 100% local (Ollama).
 
-Décide pour chaque requête si on envoie à Ollama local (rapide, gratuit, moins
-capable) ou à Anthropic cloud (lent, payant, plus capable), puis exécute l'appel.
+Une seule cible : Ollama. Pas de cloud, pas de clé API, pas de fuite de données.
+Le routing "intelligent" se limite pour l'instant à de l'observability (on conserve
+la classification d'intent pour le logging et un futur routing multi-modèles).
 
-Heuristiques initiales (S2 affinera) :
-- prompts courts + intents simples → local (Qwen 14B suffit largement)
-- prompts longs OU intents complexes (reasoning, code, multi-tool) → cloud Sonnet 4.6
-- ratio coût/qualité ajustable via seuils
+À terme, on pourra charger plusieurs modèles dans Ollama (un petit rapide pour
+le smalltalk, un gros capable pour le code) et router selon l'intent. Pour le
+MVP, un seul modèle (gpt-oss:120b par défaut).
 """
 
 from __future__ import annotations
@@ -14,108 +14,50 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from jarvis_llm.clients.anthropic_client import AnthropicClient
 from jarvis_llm.clients.ollama_client import OllamaClient
 
-# Au-delà de ce nombre de tokens estimés dans le prompt, on bascule au cloud.
-# Qwen 14B accepte ~32k tokens mais sa qualité chute fort après ~4k tokens en pratique.
-CLOUD_PROMPT_TOKENS_THRESHOLD = 2000
-
 # Heuristique simpliste : ~4 caractères = 1 token pour FR/EN mixte.
+# Utilisé uniquement pour l'observability (estimation pré-call).
 CHARS_PER_TOKEN_ESTIMATE = 4
 
 
 class IntentClass(StrEnum):
     """Classification grossière de l'intent de l'utilisateur.
 
-    Sert au routing : les intents simples peuvent aller en local, les complexes
-    bénéficient du cloud (meilleur reasoning).
+    Sert pour l'observability (logging) et potentiellement un futur routing
+    multi-modèles (S2+). Pour l'instant, tous les intents tapent le même modèle.
     """
 
-    SIMPLE = "simple"  # FAQ, status, météo, conversion → local
-    CONVERSATIONAL = "conversational"  # discussion fluide → local
-    COMPLEX = "complex"  # reasoning, multi-step → cloud
-    CODE = "code"  # génération/explication code → cloud
-    TOOL_USE = "tool_use"  # appel d'outils multiples → cloud
-
-
-class RouteTarget(StrEnum):
-    """Cible de routing décidée par le router."""
-
-    LOCAL = "local"
-    CLOUD = "cloud"
-
-
-@dataclass(frozen=True, slots=True)
-class RouteDecision:
-    """Décision du routeur pour une requête donnée."""
-
-    target: RouteTarget
-    reason: str
-    estimated_tokens: int
+    SIMPLE = "simple"  # FAQ, status, météo, conversion
+    CONVERSATIONAL = "conversational"  # discussion fluide
+    COMPLEX = "complex"  # reasoning, multi-step
+    CODE = "code"  # génération/explication code
+    TOOL_USE = "tool_use"  # appel d'outils multiples (S5+, MCP)
 
 
 @dataclass(frozen=True, slots=True)
 class CompletionResult:
-    """Résultat d'un appel LLM, agnostique du backend (local ou cloud)."""
+    """Résultat d'un appel LLM local."""
 
     text: str
-    target: RouteTarget
     model: str
+    intent: IntentClass
     input_tokens: int
     output_tokens: int
-    reason: str
+    estimated_prompt_tokens: int
 
 
 class LlmRouter:
-    """Routeur hybride entre Ollama local et Anthropic cloud.
-
-    Stateless côté décision — l'exécution dépend des clients injectés.
+    """Routeur LLM 100% local.
 
     Args:
-        anthropic_client: client cloud. Si None, toute requête cloud sera rejetée.
-        ollama_client: client local. Si None, toute requête locale fallback au cloud
-            (ou échoue si pas de cloud non plus).
-        cloud_threshold_tokens: au-delà, on bascule au cloud même pour intent simple.
+        ollama_client: client local Ollama. Requis.
     """
 
-    def __init__(
-        self,
-        *,
-        anthropic_client: AnthropicClient | None = None,
-        ollama_client: OllamaClient | None = None,
-        cloud_threshold_tokens: int = CLOUD_PROMPT_TOKENS_THRESHOLD,
-    ) -> None:
-        self.anthropic_client = anthropic_client
+    def __init__(self, *, ollama_client: OllamaClient) -> None:
+        if ollama_client is None:
+            raise ValueError("LlmRouter: ollama_client requis (100% local, pas de cloud).")
         self.ollama_client = ollama_client
-        self.cloud_threshold_tokens = cloud_threshold_tokens
-
-    def decide(self, prompt: str, intent: IntentClass) -> RouteDecision:
-        """Retourne la cible (local/cloud) pour le prompt + intent donnés."""
-        estimated_tokens = self._estimate_tokens(prompt)
-
-        if intent in {IntentClass.COMPLEX, IntentClass.CODE, IntentClass.TOOL_USE}:
-            return RouteDecision(
-                target=RouteTarget.CLOUD,
-                reason=f"intent={intent.value} requiert cloud Sonnet 4.6",
-                estimated_tokens=estimated_tokens,
-            )
-
-        if estimated_tokens > self.cloud_threshold_tokens:
-            return RouteDecision(
-                target=RouteTarget.CLOUD,
-                reason=(
-                    f"prompt ~{estimated_tokens} tokens > seuil "
-                    f"{self.cloud_threshold_tokens} → cloud"
-                ),
-                estimated_tokens=estimated_tokens,
-            )
-
-        return RouteDecision(
-            target=RouteTarget.LOCAL,
-            reason=f"intent={intent.value} + prompt court → local Qwen 14B",
-            estimated_tokens=estimated_tokens,
-        )
 
     async def execute(
         self,
@@ -125,57 +67,29 @@ class LlmRouter:
         max_tokens: int = 1024,
         system: str | None = None,
     ) -> CompletionResult:
-        """Décide + exécute l'appel LLM. Fallback cloud si local indispo.
+        """Exécute l'appel LLM local.
 
         Args:
             prompt: message utilisateur.
-            intent: classification de la requête.
+            intent: classification (loggée mais ne change pas la cible pour l'instant).
             max_tokens: limite tokens en sortie.
             system: prompt système optionnel.
 
         Returns:
-            CompletionResult uniforme quel que soit le backend.
+            CompletionResult avec texte + comptage tokens + intent loggé.
 
         Raises:
-            RuntimeError: si aucun client n'est disponible pour la cible décidée.
+            ollama.ResponseError / httpx.ConnectError: si Ollama injoignable ou modèle pas pulled.
         """
-        decision = self.decide(prompt, intent)
-        target = decision.target
-
-        if target is RouteTarget.LOCAL and self.ollama_client is None:
-            if self.anthropic_client is None:
-                raise RuntimeError("Aucun client LLM disponible (ni local, ni cloud).")
-            target = RouteTarget.CLOUD
-            reason = f"{decision.reason} → fallback cloud (Ollama indispo)"
-        elif target is RouteTarget.CLOUD and self.anthropic_client is None:
-            if self.ollama_client is None:
-                raise RuntimeError("Aucun client LLM disponible (ni local, ni cloud).")
-            target = RouteTarget.LOCAL
-            reason = f"{decision.reason} → fallback local (clé Anthropic absente)"
-        else:
-            reason = decision.reason
-
-        if target is RouteTarget.LOCAL:
-            assert self.ollama_client is not None  # garanti par le bloc ci-dessus
-            local = await self.ollama_client.complete(prompt, max_tokens=max_tokens, system=system)
-            return CompletionResult(
-                text=local.text,
-                target=RouteTarget.LOCAL,
-                model=local.model,
-                input_tokens=local.prompt_tokens,
-                output_tokens=local.completion_tokens,
-                reason=reason,
-            )
-
-        assert self.anthropic_client is not None  # garanti par le bloc ci-dessus
-        cloud = await self.anthropic_client.complete(prompt, max_tokens=max_tokens, system=system)
+        estimated = self._estimate_tokens(prompt)
+        completion = await self.ollama_client.complete(prompt, max_tokens=max_tokens, system=system)
         return CompletionResult(
-            text=cloud.text,
-            target=RouteTarget.CLOUD,
-            model=cloud.model,
-            input_tokens=cloud.input_tokens,
-            output_tokens=cloud.output_tokens,
-            reason=reason,
+            text=completion.text,
+            model=completion.model,
+            intent=intent,
+            input_tokens=completion.prompt_tokens,
+            output_tokens=completion.completion_tokens,
+            estimated_prompt_tokens=estimated,
         )
 
     @staticmethod

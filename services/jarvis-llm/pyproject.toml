@@ -1,13 +1,12 @@
 [project]
 name = "jarvis-llm"
-version = "0.1.0"
-description = "Service LLM : router local (Ollama Qwen) + cloud (Anthropic Sonnet 4.6)"
+version = "0.2.0"
+description = "Service LLM 100% local via Ollama (defaut gpt-oss:120b)"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
 authors = [{ name = "Noah Trillon", email = "noah.trillon28@gmail.com" }]
 
 dependencies = [
-    "anthropic>=0.55",
     "ollama>=0.4",
     "pydantic>=2.0",
     "grpcio>=1.66",

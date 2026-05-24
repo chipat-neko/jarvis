@@ -1,9 +1,9 @@
-"""Serveur gRPC pour jarvis-llm.
+"""Serveur gRPC pour jarvis-llm (100% local via Ollama).
 
-Implémente Ping + Complete (non-streaming). Stream/RouteIntent arriveront plus tard.
+Implémente Ping + Complete (non-streaming). Streaming arrivera plus tard.
 
 Lancement local :
-    python -m jarvis_llm.server [--no-cloud] [--no-local] [--address 127.0.0.1:50052]
+    python -m jarvis_llm.server [--address 127.0.0.1:50052] [--model gpt-oss:120b]
 """
 
 from __future__ import annotations
@@ -17,11 +17,9 @@ import grpc
 from loguru import logger
 
 from jarvis_llm import __version__
-from jarvis_llm.clients.anthropic_client import AnthropicClient
-from jarvis_llm.clients.ollama_client import OllamaClient
+from jarvis_llm.clients.ollama_client import DEFAULT_LOCAL_MODEL, OllamaClient
 from jarvis_llm.proto_gen import common_pb2, llm_pb2, llm_pb2_grpc
-from jarvis_llm.router import IntentClass, LlmRouter, RouteTarget
-from jarvis_llm.secrets import get_anthropic_api_key
+from jarvis_llm.router import IntentClass, LlmRouter
 
 DEFAULT_LLM_ADDRESS = "127.0.0.1:50052"
 GRACEFUL_SHUTDOWN_SECONDS = 5
@@ -35,32 +33,20 @@ _PROTO_INTENT_TO_ENUM = {
     llm_pb2.INTENT_TOOL_USE: IntentClass.TOOL_USE,
 }
 
-_ROUTE_TARGET_TO_PROTO = {
-    RouteTarget.LOCAL: llm_pb2.TARGET_LOCAL,
-    RouteTarget.CLOUD: llm_pb2.TARGET_CLOUD,
+_INTENT_TO_PROTO = {
+    IntentClass.SIMPLE: llm_pb2.INTENT_SIMPLE,
+    IntentClass.CONVERSATIONAL: llm_pb2.INTENT_CONVERSATIONAL,
+    IntentClass.COMPLEX: llm_pb2.INTENT_COMPLEX,
+    IntentClass.CODE: llm_pb2.INTENT_CODE,
+    IntentClass.TOOL_USE: llm_pb2.INTENT_TOOL_USE,
 }
 
 
-def build_router(*, enable_cloud: bool = True, enable_local: bool = True) -> LlmRouter:
-    """Construit un LlmRouter avec les clients disponibles selon l'environnement."""
-    anthropic_client: AnthropicClient | None = None
-    ollama_client: OllamaClient | None = None
-
-    if enable_cloud:
-        api_key = get_anthropic_api_key()
-        if api_key:
-            anthropic_client = AnthropicClient(api_key=api_key)
-            logger.info("Anthropic client OK (clé trouvée)")
-        else:
-            logger.warning("ANTHROPIC_API_KEY introuvable (keyring + env vide). Pas de cloud.")
-
-    if enable_local:
-        # Ollama est instancié sans vérifier la connectivité (lazy). Si le serveur
-        # local n'est pas up, l'appel échouera à `complete()` — le router fallback cloud.
-        ollama_client = OllamaClient()
-        logger.info("Ollama client OK (host={})", ollama_client.host)
-
-    return LlmRouter(anthropic_client=anthropic_client, ollama_client=ollama_client)
+def build_router(*, model: str = DEFAULT_LOCAL_MODEL) -> LlmRouter:
+    """Construit un LlmRouter branché sur Ollama local."""
+    ollama_client = OllamaClient(model=model)
+    logger.info("Ollama client OK (host={}, model={})", ollama_client.host, ollama_client.model)
+    return LlmRouter(ollama_client=ollama_client)
 
 
 class LlmServicer(llm_pb2_grpc.LlmServiceServicer):
@@ -116,27 +102,26 @@ class LlmServicer(llm_pb2_grpc.LlmServiceServicer):
 
         ok_status = common_pb2.Status(
             code=common_pb2.Status.Code.OK,
-            message=result.reason,
+            message=f"intent={result.intent.value} model={result.model}",
         )
         return llm_pb2.CompleteResponse(
             status=ok_status,
             text=result.text,
-            target=_ROUTE_TARGET_TO_PROTO[result.target],
             model=result.model,
+            intent=_INTENT_TO_PROTO[result.intent],
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
-            reason=result.reason,
+            estimated_prompt_tokens=result.estimated_prompt_tokens,
         )
 
 
 def serve(
     address: str = DEFAULT_LLM_ADDRESS,
     *,
-    enable_cloud: bool = True,
-    enable_local: bool = True,
+    model: str = DEFAULT_LOCAL_MODEL,
 ) -> None:
     """Démarre le serveur gRPC et bloque jusqu'à interruption."""
-    router = build_router(enable_cloud=enable_cloud, enable_local=enable_local)
+    router = build_router(model=model)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     llm_pb2_grpc.add_LlmServiceServicer_to_server(LlmServicer(router), server)
     server.add_insecure_port(address)
@@ -151,18 +136,13 @@ def serve(
 
 def main() -> int:
     """Entry point CLI : `python -m jarvis_llm.server` ou `jarvis-llm`."""
-    parser = argparse.ArgumentParser(description="Serveur gRPC jarvis-llm")
+    parser = argparse.ArgumentParser(description="Serveur gRPC jarvis-llm (100% local)")
     parser.add_argument("--address", default=DEFAULT_LLM_ADDRESS, help="host:port d'écoute")
-    parser.add_argument("--no-cloud", action="store_true", help="désactive Anthropic")
-    parser.add_argument("--no-local", action="store_true", help="désactive Ollama")
+    parser.add_argument("--model", default=DEFAULT_LOCAL_MODEL, help="modèle Ollama à utiliser")
     args = parser.parse_args()
 
     try:
-        serve(
-            args.address,
-            enable_cloud=not args.no_cloud,
-            enable_local=not args.no_local,
-        )
+        serve(args.address, model=args.model)
     except Exception as exc:
         logger.exception("Erreur fatale : {}", exc)
         return 1

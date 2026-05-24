@@ -1,4 +1,4 @@
-"""Client gRPC pour communiquer avec jarvis-llm.
+"""Client gRPC pour communiquer avec jarvis-llm (100% local).
 
 Usage rapide :
 
@@ -31,19 +31,13 @@ class LlmPingResult:
 class LlmCompleteResult:
     ok: bool
     text: str
-    target: str  # "local" / "cloud" / "unspecified"
     model: str
+    intent: str  # "simple" / "conversational" / "complex" / "code" / "tool_use"
     input_tokens: int
     output_tokens: int
-    reason: str
+    estimated_prompt_tokens: int
     status_message: str
 
-
-_TARGET_PROTO_TO_STR = {
-    llm_pb2.TARGET_UNSPECIFIED: "unspecified",
-    llm_pb2.TARGET_LOCAL: "local",
-    llm_pb2.TARGET_CLOUD: "cloud",
-}
 
 # Aligné avec l'enum jarvis_llm.router.IntentClass
 _INTENT_STR_TO_PROTO = {
@@ -52,6 +46,15 @@ _INTENT_STR_TO_PROTO = {
     "complex": llm_pb2.INTENT_COMPLEX,
     "code": llm_pb2.INTENT_CODE,
     "tool_use": llm_pb2.INTENT_TOOL_USE,
+}
+
+_INTENT_PROTO_TO_STR = {
+    llm_pb2.INTENT_UNSPECIFIED: "unspecified",
+    llm_pb2.INTENT_SIMPLE: "simple",
+    llm_pb2.INTENT_CONVERSATIONAL: "conversational",
+    llm_pb2.INTENT_COMPLEX: "complex",
+    llm_pb2.INTENT_CODE: "code",
+    llm_pb2.INTENT_TOOL_USE: "tool_use",
 }
 
 
@@ -80,7 +83,7 @@ def complete(
     system_prompt: str = "",
     client_id: str = "orchestrator",
     address: str = DEFAULT_LLM_ADDRESS,
-    timeout_s: float = 60.0,
+    timeout_s: float = 300.0,  # 5 min — modèles 120B peuvent être lents
 ) -> LlmCompleteResult:
     """Appel Complete bloquant vers jarvis-llm.
 
@@ -103,11 +106,11 @@ def complete(
     return LlmCompleteResult(
         ok=response.status.code == STATUS_CODE_OK,
         text=response.text,
-        target=_TARGET_PROTO_TO_STR.get(response.target, "unspecified"),
         model=response.model,
+        intent=_INTENT_PROTO_TO_STR.get(response.intent, "unspecified"),
         input_tokens=response.input_tokens,
         output_tokens=response.output_tokens,
-        reason=response.reason,
+        estimated_prompt_tokens=response.estimated_prompt_tokens,
         status_message=response.status.message,
     )
 

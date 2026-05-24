@@ -15,21 +15,12 @@ class IntentClass(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     INTENT_COMPLEX: _ClassVar[IntentClass]
     INTENT_CODE: _ClassVar[IntentClass]
     INTENT_TOOL_USE: _ClassVar[IntentClass]
-
-class RouteTarget(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    TARGET_UNSPECIFIED: _ClassVar[RouteTarget]
-    TARGET_LOCAL: _ClassVar[RouteTarget]
-    TARGET_CLOUD: _ClassVar[RouteTarget]
 INTENT_UNSPECIFIED: IntentClass
 INTENT_SIMPLE: IntentClass
 INTENT_CONVERSATIONAL: IntentClass
 INTENT_COMPLEX: IntentClass
 INTENT_CODE: IntentClass
 INTENT_TOOL_USE: IntentClass
-TARGET_UNSPECIFIED: RouteTarget
-TARGET_LOCAL: RouteTarget
-TARGET_CLOUD: RouteTarget
 
 class PingRequest(_message.Message):
     __slots__ = ("client_id",)
@@ -60,19 +51,19 @@ class CompleteRequest(_message.Message):
     def __init__(self, prompt: _Optional[str] = ..., intent: _Optional[_Union[IntentClass, str]] = ..., max_tokens: _Optional[int] = ..., system_prompt: _Optional[str] = ..., client_id: _Optional[str] = ...) -> None: ...
 
 class CompleteResponse(_message.Message):
-    __slots__ = ("status", "text", "target", "model", "input_tokens", "output_tokens", "reason")
+    __slots__ = ("status", "text", "model", "intent", "input_tokens", "output_tokens", "estimated_prompt_tokens")
     STATUS_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
-    TARGET_FIELD_NUMBER: _ClassVar[int]
     MODEL_FIELD_NUMBER: _ClassVar[int]
+    INTENT_FIELD_NUMBER: _ClassVar[int]
     INPUT_TOKENS_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_TOKENS_FIELD_NUMBER: _ClassVar[int]
-    REASON_FIELD_NUMBER: _ClassVar[int]
+    ESTIMATED_PROMPT_TOKENS_FIELD_NUMBER: _ClassVar[int]
     status: _common_pb2.Status
     text: str
-    target: RouteTarget
     model: str
+    intent: IntentClass
     input_tokens: int
     output_tokens: int
-    reason: str
-    def __init__(self, status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ..., text: _Optional[str] = ..., target: _Optional[_Union[RouteTarget, str]] = ..., model: _Optional[str] = ..., input_tokens: _Optional[int] = ..., output_tokens: _Optional[int] = ..., reason: _Optional[str] = ...) -> None: ...
+    estimated_prompt_tokens: int
+    def __init__(self, status: _Optional[_Union[_common_pb2.Status, _Mapping]] = ..., text: _Optional[str] = ..., model: _Optional[str] = ..., intent: _Optional[_Union[IntentClass, str]] = ..., input_tokens: _Optional[int] = ..., output_tokens: _Optional[int] = ..., estimated_prompt_tokens: _Optional[int] = ...) -> None: ...
