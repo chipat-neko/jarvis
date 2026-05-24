@@ -50,10 +50,26 @@ foreach ($svc in $ServiceProtos.Keys) {
     if (Test-Path $genDir) { Remove-Item -Recurse -Force $genDir }
     New-Item -ItemType Directory -Force -Path $genDir | Out-Null
 
-    # __init__.py minimal pour faire un package
-    Set-Content -Path (Join-Path $genDir "__init__.py") `
-                -Value "# Code généré par grpc_tools.protoc — NE PAS MODIFIER À LA MAIN.`n# Régénérer via : pwsh -File scripts/codegen_python.ps1`n" `
-                -Encoding UTF8
+    # __init__.py — hack sys.path pour que les imports inter-protos générés
+    # par grpc_tools.protoc (ex: `import common_pb2`) se résolvent.
+    $initContent = @'
+"""Code généré par grpc_tools.protoc — NE PAS MODIFIER À LA MAIN.
+
+Régénérer via : pwsh -File scripts/codegen_python.ps1 (ou codegen_python.sh).
+
+NOTE TECHNIQUE : grpc_tools.protoc génère des `import common_pb2` directs
+(et non `from . import common_pb2`). On ajoute ce dossier au sys.path pour
+que ces imports résolvent. Solution propre future : protoletariat.
+"""
+
+import os
+import sys
+
+_gen_dir = os.path.dirname(os.path.abspath(__file__))
+if _gen_dir not in sys.path:
+    sys.path.insert(0, _gen_dir)
+'@
+    Set-Content -Path (Join-Path $genDir "__init__.py") -Value $initContent -Encoding UTF8
 
     # Construit la liste des .proto à compiler pour ce service
     $protosToCompile = $ServiceProtos[$svc] | ForEach-Object { Join-Path $ProtoDir "$_.proto" }
