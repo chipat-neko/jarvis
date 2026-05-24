@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import sys
 
 from jarvis_llm.clients.huggingface_client import DEFAULT_HF_MODEL, HuggingFaceClient
@@ -170,17 +171,24 @@ def _dispatch_user_message(
     grpc_address: str,
     router: LlmRouter | None,
     conversation: Conversation | None,
+    loop: asyncio.AbstractEventLoop,
 ) -> tuple[str, str, str]:
-    """Route le message utilisateur vers gRPC ou in-process, avec ou sans historique."""
+    """Route le message utilisateur vers gRPC ou in-process, avec ou sans historique.
+
+    On utilise une event loop persistante passée par le REPL (`loop.run_until_complete`)
+    plutôt qu'`asyncio.run` à chaque appel. Sans ça, sur Windows, httpx/anyio
+    (utilisés par `ollama.AsyncClient`) ne nettoient pas leurs sockets entre les
+    fermetures de loop → RuntimeError "Event loop is closed" au 2e tour.
+    """
     if via_grpc:
         return _answer_via_grpc(user, address=grpc_address)
     if conversation is not None:
         assert router is not None
-        return asyncio.run(_answer_in_process(router, conversation, user))
+        return loop.run_until_complete(_answer_in_process(router, conversation, user))
     # Mode --no-history en in-process : tour isolé sans persistance
     assert router is not None
     tmp_conv = Conversation(system_prompt=DEFAULT_SYSTEM_PROMPT, window=2, path=None)
-    return asyncio.run(_answer_in_process(router, tmp_conv, user))
+    return loop.run_until_complete(_answer_in_process(router, tmp_conv, user))
 
 
 def run_repl(
@@ -227,6 +235,35 @@ def run_repl(
 
     last_model = display_model
 
+    # Event loop persistante pour toute la durée du REPL.
+    # Sans ça : RuntimeError "Event loop is closed" au 2e tour sur Windows
+    # car httpx/anyio (côté ollama.AsyncClient) ne ferment pas leurs sockets
+    # à temps quand on enchaîne plusieurs `asyncio.run(...)`.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return _repl_loop(
+            loop=loop,
+            via_grpc=via_grpc,
+            grpc_address=grpc_address,
+            router=router,
+            conversation=conversation,
+            last_model=last_model,
+        )
+    finally:
+        with contextlib.suppress(Exception):
+            loop.close()
+
+
+def _repl_loop(
+    *,
+    loop: asyncio.AbstractEventLoop,
+    via_grpc: bool,
+    grpc_address: str,
+    router: LlmRouter | None,
+    conversation: Conversation | None,
+    last_model: str,
+) -> int:
     while True:
         try:
             user = input("\nVous> ").strip()
@@ -250,6 +287,7 @@ def run_repl(
                 grpc_address=grpc_address,
                 router=router,
                 conversation=conversation,
+                loop=loop,
             )
         except Exception as exc:
             print(f"❌ Erreur : {type(exc).__name__}: {exc}", file=sys.stderr)
