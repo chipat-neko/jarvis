@@ -26,3 +26,17 @@ def test_voice_client_module_importable() -> None:
     from orchestrator.clients import voice_client
 
     assert voice_client.DEFAULT_VOICE_ADDRESS == "127.0.0.1:50051"
+
+
+def test_llm_client_module_importable() -> None:
+    """Le client gRPC llm doit être importable."""
+    from orchestrator.clients import llm_client
+
+    assert llm_client.DEFAULT_LLM_ADDRESS == "127.0.0.1:50052"
+
+
+def test_chat_module_importable() -> None:
+    """Le REPL de chat doit être importable (sans le lancer)."""
+    from orchestrator import chat
+
+    assert "Jarvis" in chat.DEFAULT_SYSTEM_PROMPT

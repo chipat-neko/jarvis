@@ -39,6 +39,11 @@ class LlmServiceStub(object):
                 request_serializer=llm__pb2.PingRequest.SerializeToString,
                 response_deserializer=llm__pb2.PingResponse.FromString,
                 _registered_method=True)
+        self.Complete = channel.unary_unary(
+                '/jarvis.llm.v1.LlmService/Complete',
+                request_serializer=llm__pb2.CompleteRequest.SerializeToString,
+                response_deserializer=llm__pb2.CompleteResponse.FromString,
+                _registered_method=True)
 
 
 class LlmServiceServicer(object):
@@ -50,6 +55,14 @@ class LlmServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Complete(self, request, context):
+        """Complete : appel non-streaming. Le service decide local vs cloud selon
+        l'intent + la longueur du prompt + les clients disponibles.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_LlmServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -57,6 +70,11 @@ def add_LlmServiceServicer_to_server(servicer, server):
                     servicer.Ping,
                     request_deserializer=llm__pb2.PingRequest.FromString,
                     response_serializer=llm__pb2.PingResponse.SerializeToString,
+            ),
+            'Complete': grpc.unary_unary_rpc_method_handler(
+                    servicer.Complete,
+                    request_deserializer=llm__pb2.CompleteRequest.FromString,
+                    response_serializer=llm__pb2.CompleteResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +104,33 @@ class LlmService(object):
             '/jarvis.llm.v1.LlmService/Ping',
             llm__pb2.PingRequest.SerializeToString,
             llm__pb2.PingResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Complete(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jarvis.llm.v1.LlmService/Complete',
+            llm__pb2.CompleteRequest.SerializeToString,
+            llm__pb2.CompleteResponse.FromString,
             options,
             channel_credentials,
             insecure,

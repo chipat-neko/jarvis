@@ -1,6 +1,5 @@
 ﻿// proto/llm.proto
 // Contrat du service jarvis-llm : routing local (Ollama Qwen) + cloud (Anthropic Sonnet).
-// TODO: definir les RPC reels en S2.
 
 syntax = "proto3";
 package jarvis.llm.v1;
@@ -10,10 +9,49 @@ import "common.proto";
 service LlmService {
     rpc Ping (PingRequest) returns (PingResponse);
 
-    // TODO S2 : rpc Complete (CompleteRequest) returns (CompleteResponse);
-    // TODO S2 : rpc Stream (CompleteRequest) returns (stream CompletionChunk);
-    // TODO S2 : rpc RouteIntent (IntentRequest) returns (RouteDecision);
+    // Complete : appel non-streaming. Le service decide local vs cloud selon
+    // l'intent + la longueur du prompt + les clients disponibles.
+    rpc Complete (CompleteRequest) returns (CompleteResponse);
+
+    // TODO sprint suivant : rpc Stream (CompleteRequest) returns (stream CompletionChunk);
+    // TODO sprint suivant : rpc RouteIntent (IntentRequest) returns (RouteDecision);
 }
 
 message PingRequest { string client_id = 1; }
 message PingResponse { jarvis.common.v1.Status status = 1; string version = 2; }
+
+// Classification grossiere de l'intent utilisateur. Doit rester aligne avec
+// l'enum jarvis_llm.router.IntentClass cote Python.
+enum IntentClass {
+    INTENT_UNSPECIFIED = 0;
+    INTENT_SIMPLE = 1;          // FAQ, status, conversion -> local
+    INTENT_CONVERSATIONAL = 2;  // small talk -> local
+    INTENT_COMPLEX = 3;         // reasoning, analyse -> cloud
+    INTENT_CODE = 4;            // generation/explication code -> cloud
+    INTENT_TOOL_USE = 5;        // tools multiples -> cloud
+}
+
+// Cible effective decidee par le routeur.
+enum RouteTarget {
+    TARGET_UNSPECIFIED = 0;
+    TARGET_LOCAL = 1;
+    TARGET_CLOUD = 2;
+}
+
+message CompleteRequest {
+    string prompt = 1;
+    IntentClass intent = 2;
+    int32 max_tokens = 3;        // 0 -> defaut serveur
+    string system_prompt = 4;    // optionnel, "" -> aucun
+    string client_id = 5;        // tracing
+}
+
+message CompleteResponse {
+    jarvis.common.v1.Status status = 1;
+    string text = 2;
+    RouteTarget target = 3;
+    string model = 4;
+    int32 input_tokens = 5;
+    int32 output_tokens = 6;
+    string reason = 7;           // raison du routing (debug / observability)
+}

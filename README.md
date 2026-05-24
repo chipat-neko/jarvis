@@ -102,7 +102,8 @@ cd d:\assistant_ai\jarvis
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e .[dev]                                    # tooling transverse (ruff, mypy, pytest)
-pip install -e services/jarvis-orchestrator              # à répéter par service quand on commence
+pip install -e services/jarvis-orchestrator              # orchestrateur (CLI chat)
+pip install -e services/jarvis-llm                       # routeur LLM hybride local/cloud
 # (Les autres services seront installables une fois leur code écrit aux sprints S2+)
 
 # Rust workspace
@@ -116,10 +117,22 @@ ollama pull qwen2.5:14b-instruct-q4_K_M
 
 - Copier `config/config.example.yaml` → `config/local.yaml` (gitignored) et remplir
 - Stocker les secrets dans le keyring Windows (pas dans `.env`) :
-  ```python
-  import keyring
-  keyring.set_password("jarvis", "anthropic_api_key", "sk-ant-...")
+  ```powershell
+  py -3.11 -File scripts\setup_keyring.ps1
+  # ou en one-liner :
+  py -3.11 -c "import keyring; keyring.set_password('jarvis', 'anthropic_api_key', 'sk-ant-...')"
   ```
+
+### Lancer le chat (MVP texte)
+
+```powershell
+py -3.11 -m orchestrator.chat              # in-process, cloud+local
+py -3.11 -m orchestrator.chat --no-local   # cloud Anthropic uniquement
+py -3.11 -m orchestrator.chat --no-cloud   # local Ollama uniquement
+py -3.11 -m orchestrator.chat --via-grpc   # passe par jarvis-llm (port 50052)
+```
+
+Guide complet : [`docs/quickstart.md`](docs/quickstart.md).
 
 ---
 
