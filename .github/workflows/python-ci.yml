@@ -54,6 +54,7 @@ jobs:
       - name: Install services (editable mode)
         run: |
           pip install -e services/jarvis-orchestrator
+          pip install -e services/jarvis-llm
           # Les autres services seront installés au fil des sprints quand leurs deps seront vraiment utilisées.
 
       - name: ruff check

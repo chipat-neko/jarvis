@@ -99,6 +99,10 @@ ignore_errors = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"
+# importlib mode = chaque test_*.py est importé comme un module unique
+# (sans __init__.py dans tests/) → évite les collisions de basename
+# quand plusieurs services ont un test_smoke.py.
+addopts = "--import-mode=importlib"
 testpaths = [
     "services/jarvis-orchestrator/tests",
     "services/jarvis-llm/tests",
