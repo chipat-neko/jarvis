@@ -1,2 +1,2 @@
-﻿# tests jarvis-safety
+# tests jarvis-safety
 

@@ -1,2 +1,2 @@
-﻿# tests jarvis-memory
+# tests jarvis-memory
 

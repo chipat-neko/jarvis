@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "jarvis-cu"
 version = "0.1.0"
 description = "Service Computer Use : Anthropic CU + OmniParser local + pyautogui"

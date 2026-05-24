@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "jarvis-orchestrator"
 version = "0.1.0"
 description = "Service orchestrator : point d'entree principal + LangGraph state machine + Pipecat pipeline voice"

@@ -1,2 +1,2 @@
-﻿# tests jarvis-cu
+# tests jarvis-cu
 

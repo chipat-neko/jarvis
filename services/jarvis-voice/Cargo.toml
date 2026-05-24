@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "jarvis-voice"
 description = "Service voice pipeline temps reel (Rust) : wake word, STT, VAD, TTS, audio I/O"
 version.workspace = true

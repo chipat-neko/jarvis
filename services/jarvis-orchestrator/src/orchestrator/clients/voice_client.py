@@ -9,12 +9,12 @@ Usage :
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 
 import grpc
 
 from orchestrator.proto_gen import voice_pb2, voice_pb2_grpc
-
 
 DEFAULT_VOICE_ADDRESS = "127.0.0.1:50051"
 
@@ -68,14 +68,12 @@ def main() -> int:
 
     Usage : python -m orchestrator.clients.voice_client
     """
-    import sys
-
     try:
         result = ping_voice(client_id="cli-test")
     except grpc.RpcError as exc:
         print(f"❌ Erreur gRPC : {exc.code().name} — {exc.details()}", file=sys.stderr)
         print(f"   Vérifie que jarvis-voice tourne sur {DEFAULT_VOICE_ADDRESS}", file=sys.stderr)
-        print(f"   (cargo run -p jarvis-voice dans un autre terminal)", file=sys.stderr)
+        print("   (cargo run -p jarvis-voice dans un autre terminal)", file=sys.stderr)
         return 2
 
     status_icon = "✅" if result.ok else "❌"
@@ -86,6 +84,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import sys
-
     sys.exit(main())

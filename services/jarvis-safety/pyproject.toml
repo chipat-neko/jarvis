@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "jarvis-safety"
 version = "0.1.0"
 description = "Service Safety : kill switch endpoint + audit log SQLite + blacklist + voice confirmations"

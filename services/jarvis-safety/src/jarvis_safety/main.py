@@ -1,8 +1,9 @@
-﻿"""Entry point pour jarvis-safety.
+"""Entry point pour jarvis-safety.
 
 Service skeleton — sera rempli au sprint dedie (cf TODO proto/safety.proto).
 Pour l'instant, le service ne fait rien — il sera implemente comme gRPC server.
 """
+
 
 def main() -> None:
     raise NotImplementedError(

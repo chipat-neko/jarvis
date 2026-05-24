@@ -1,8 +1,9 @@
-﻿"""Entry point pour jarvis-llm.
+"""Entry point pour jarvis-llm.
 
 Service skeleton — sera rempli au sprint dedie (cf TODO proto/llm.proto).
 Pour l'instant, le service ne fait rien — il sera implemente comme gRPC server.
 """
+
 
 def main() -> None:
     raise NotImplementedError(

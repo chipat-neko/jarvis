@@ -65,7 +65,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["PLR2004"]  # magic numbers OK dans les tests
+"**/tests/**" = [
+    "PLR2004",  # magic numbers OK dans les tests
+    "PLC0415",  # imports en corps de fonction OK pour tester l'importabilité
+    "S101",     # assert OK dans tests
+]
 
 [tool.mypy]
 python_version = "3.11"

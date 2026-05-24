@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "jarvis-tools"
 version = "0.1.0"
 description = "Service MCP : wrapper pour les 8 MCP servers (filesystem, github, ha, spotify, brave, memory, notion, gmail)"

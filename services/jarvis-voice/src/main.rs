@@ -1,19 +1,34 @@
 //! jarvis-voice — service Rust pour le pipeline voice temps réel.
 //!
 //! Skeleton initial avec gRPC server `VoiceService` qui expose Ping/Pong.
-//! Les vrais RPC (StreamAudio, Transcribe, Synthesize, DetectWakeWord) seront
-//! implémentés en S3-S4 (cf TODO proto/voice.proto).
+//! Les vrais RPC (`StreamAudio`, `Transcribe`, `Synthesize`, `DetectWakeWord`)
+//! seront implémentés en S3-S4 (cf TODO proto/voice.proto).
 //!
 //! Cf docs/adr/0001-microservices-python-rust.md.
 
 use std::net::SocketAddr;
 
 use anyhow::Result;
-use tonic::{transport::Server, Request, Response, Status as TonicStatus};
+use tonic::{Request, Response, Status as TonicStatus, transport::Server};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 // Code généré par tonic-build depuis proto/voice.proto et proto/common.proto.
+// Les modules générés ne respectent pas les lints pedantic/nursery — on les
+// désactive uniquement pour ce sous-arbre. NE PAS modifier ce wrapper sans
+// raison : il existe précisément pour isoler le code généré du reste.
+#[allow(
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::cargo,
+    clippy::restriction,
+    clippy::style,
+    clippy::complexity,
+    clippy::correctness,
+    clippy::perf,
+    clippy::suspicious
+)]
 pub mod jarvis {
     pub mod common {
         pub mod v1 {
@@ -27,8 +42,8 @@ pub mod jarvis {
     }
 }
 
-use jarvis::common::v1::status::Code as StatusCode;
 use jarvis::common::v1::Status as JarvisStatus;
+use jarvis::common::v1::status::Code as StatusCode;
 use jarvis::voice::v1::voice_service_server::{VoiceService, VoiceServiceServer};
 use jarvis::voice::v1::{PingRequest, PingResponse};
 
@@ -62,7 +77,9 @@ impl VoiceService for VoiceServiceImpl {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .init();
 
     let addr: SocketAddr = "127.0.0.1:50051".parse()?;

@@ -1,5 +1,8 @@
 # Jarvis
 
+[![Python CI](https://github.com/chipat-neko/jarvis/actions/workflows/python-ci.yml/badge.svg)](https://github.com/chipat-neko/jarvis/actions/workflows/python-ci.yml)
+[![Rust CI](https://github.com/chipat-neko/jarvis/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/chipat-neko/jarvis/actions/workflows/rust-ci.yml)
+
 > Assistant vocal personnel style J.A.R.V.I.S — contrôle 100 % du PC, multi-écran, smart home, mémoire long terme.
 
 Projet privé en cours de développement. Architecture **microservices Python + Rust avec gRPC** (cf [ADR-0001](docs/adr/0001-microservices-python-rust.md)). MVP cible : mi-septembre 2026 (14-15 semaines).
