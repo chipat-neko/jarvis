@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import threading
 from concurrent import futures
 
 import grpc
@@ -73,10 +74,31 @@ def build_router(
 
 
 class LlmServicer(llm_pb2_grpc.LlmServiceServicer):
-    """Implémentation du service gRPC LlmService."""
+    """Implémentation du service gRPC LlmService.
+
+    Le serveur gRPC sync de grpcio appelle les handlers dans des threads worker
+    sans event loop. On crée donc UNE event loop persistante dans un thread
+    dédié et on schedule les coroutines dessus via run_coroutine_threadsafe.
+    Évite le bug Windows "Event loop is closed" qu'on aurait avec un
+    `asyncio.run` par RPC (httpx/anyio ne nettoient pas leurs sockets entre les
+    fermetures de loop).
+    """
 
     def __init__(self, router: LlmRouter) -> None:
         self._router = router
+        self._loop = asyncio.new_event_loop()
+        self._loop_thread = threading.Thread(
+            target=self._loop.run_forever,
+            name="jarvis-llm-asyncio",
+            daemon=True,
+        )
+        self._loop_thread.start()
+
+    def stop(self) -> None:
+        """Stoppe la loop asyncio (appelé à l'arrêt du serveur)."""
+        if self._loop.is_running():
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        self._loop_thread.join(timeout=2)
 
     def Ping(
         self,
@@ -107,14 +129,16 @@ class LlmServicer(llm_pb2_grpc.LlmServiceServicer):
         system = request.system_prompt or None
 
         try:
-            result = asyncio.run(
+            future = asyncio.run_coroutine_threadsafe(
                 self._router.execute(
                     request.prompt,
                     intent,
                     max_tokens=max_tokens,
                     system=system,
-                )
+                ),
+                self._loop,
             )
+            result = future.result()
         except Exception as exc:
             logger.exception("Complete a échoué : {}", exc)
             error_status = common_pb2.Status(
@@ -154,7 +178,8 @@ def serve(
         quantize_4bit=quantize_4bit,
     )
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    llm_pb2_grpc.add_LlmServiceServicer_to_server(LlmServicer(router), server)
+    servicer = LlmServicer(router)
+    llm_pb2_grpc.add_LlmServiceServicer_to_server(servicer, server)
     server.add_insecure_port(address)
     server.start()
     logger.info("jarvis-llm listening on {} (version {})", address, __version__)
@@ -163,6 +188,7 @@ def serve(
     except KeyboardInterrupt:
         logger.info("SIGINT reçu — arrêt gracieux ({}s max)", GRACEFUL_SHUTDOWN_SECONDS)
         server.stop(GRACEFUL_SHUTDOWN_SECONDS).wait()
+        servicer.stop()
 
 
 def main() -> int:
