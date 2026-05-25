@@ -127,9 +127,7 @@ def test_save_jsonl_handles_unicode(tmp_path: Path) -> None:
 def test_stratified_sample_keeps_categories_balanced() -> None:
     prompts = [
         Prompt(id=f"c_{i}", category="code", difficulty="L1", text=f"c{i}") for i in range(10)
-    ] + [
-        Prompt(id=f"m_{i}", category="math", difficulty="L1", text=f"m{i}") for i in range(10)
-    ]
+    ] + [Prompt(id=f"m_{i}", category="math", difficulty="L1", text=f"m{i}") for i in range(10)]
     sample = stratified_sample(prompts, n=6, seed=1)
     assert len(sample) == 6
     cats = {p.category for p in sample}

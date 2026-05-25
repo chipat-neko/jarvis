@@ -129,7 +129,9 @@ class SystemAnswerer:
             try:
                 info = p.info
                 rss_mb = (info.get("memory_info").rss / 1e6) if info.get("memory_info") else 0
-                procs.append({"pid": info["pid"], "name": info.get("name", "?"), "rss_mb": round(rss_mb, 1)})
+                procs.append(
+                    {"pid": info["pid"], "name": info.get("name", "?"), "rss_mb": round(rss_mb, 1)}
+                )
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
         procs.sort(key=lambda x: x["rss_mb"], reverse=True)
@@ -145,7 +147,9 @@ class SystemAnswerer:
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=2) as resp:
                 if resp.status == 200:
-                    return SystemAnswer(ok=True, operation="ollama", data={"host": host, "status": "running"})
+                    return SystemAnswer(
+                        ok=True, operation="ollama", data={"host": host, "status": "running"}
+                    )
                 return SystemAnswer(
                     ok=False,
                     operation="ollama",

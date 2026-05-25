@@ -38,7 +38,9 @@ class GitAnswerer:
 
     def _run(self, args: list[str]) -> GitAnswer:
         if self._git_bin is None:
-            return GitAnswer(ok=False, operation=args[0] if args else "?", reason="git introuvable dans PATH")
+            return GitAnswer(
+                ok=False, operation=args[0] if args else "?", reason="git introuvable dans PATH"
+            )
         try:
             result = subprocess.run(
                 [self._git_bin, "-C", str(self.repo_path), *args],

@@ -98,7 +98,7 @@ async def test_system_ollama_dispatch() -> None:
     assert reply.source == "qr_system"
     assert reply.intent == "system"
     # Soit "tourne" soit "ne répond pas"
-    assert ("Ollama" in reply.text)
+    assert "Ollama" in reply.text
 
 
 @pytest.mark.asyncio

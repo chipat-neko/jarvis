@@ -15,9 +15,7 @@ from scripts.prompt_gen.generators import generate_all
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Génère un dataset JSONL de prompts pour Jarvis."
-    )
+    parser = argparse.ArgumentParser(description="Génère un dataset JSONL de prompts pour Jarvis.")
     parser.add_argument(
         "--n",
         type=int,

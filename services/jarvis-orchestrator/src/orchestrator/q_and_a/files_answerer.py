@@ -125,9 +125,7 @@ class FilesAnswerer:
                                 )
                             )
                             if len(matches) >= self.max_grep_matches:
-                                return FilesAnswer(
-                                    ok=True, operation="grep", matches=matches
-                                )
+                                return FilesAnswer(ok=True, operation="grep", matches=matches)
             except OSError:
                 continue
         return FilesAnswer(ok=True, operation="grep", matches=matches)

@@ -95,9 +95,7 @@ MATH_TEMPLATES: list[Template] = [
         category="math",
         difficulty="L2",
         template="Convertis {value}{unit_from} en {unit_to}. Indique la réponse en nombre.",
-        signals=(
-            Signal(kind="regex", params={"pattern": r"\b\d+([.,]\d+)?\b"}),
-        ),
+        signals=(Signal(kind="regex", params={"pattern": r"\b\d+([.,]\d+)?\b"}),),
     ),
     Template(
         category="math",
@@ -120,17 +118,13 @@ CONVERSATION_TEMPLATES: list[Template] = [
         category="conversation",
         difficulty="L1",
         template="Bonjour Jarvis, comment {action_verb} aujourd'hui ?",
-        signals=(
-            Signal(kind="length_range", params={"min_chars": 5, "max_chars": 800}),
-        ),
+        signals=(Signal(kind="length_range", params={"min_chars": 5, "max_chars": 800}),),
     ),
     Template(
         category="conversation",
         difficulty="L2",
         template="Explique-moi en {n_sentences} phrases ce qu'est {concept}.",
-        signals=(
-            Signal(kind="length_range", params={"min_chars": 30, "max_chars": 1500}),
-        ),
+        signals=(Signal(kind="length_range", params={"min_chars": 30, "max_chars": 1500}),),
     ),
     Template(
         category="conversation",
@@ -139,9 +133,7 @@ CONVERSATION_TEMPLATES: list[Template] = [
             "Je {feeling} aujourd'hui. Donne-moi un conseil court et bienveillant "
             "sans tomber dans les clichés."
         ),
-        signals=(
-            Signal(kind="length_range", params={"min_chars": 30, "max_chars": 1500}),
-        ),
+        signals=(Signal(kind="length_range", params={"min_chars": 30, "max_chars": 1500}),),
     ),
 ]
 
@@ -155,17 +147,13 @@ SIMPLE_TEMPLATES: list[Template] = [
         category="simple",
         difficulty="L1",
         template="Quelle est la capitale de {country} ?",
-        signals=(
-            Signal(kind="length_range", params={"min_chars": 1, "max_chars": 300}),
-        ),
+        signals=(Signal(kind="length_range", params={"min_chars": 1, "max_chars": 300}),),
     ),
     Template(
         category="simple",
         difficulty="L1",
         template="En quelle année a {event} eu lieu ?",
-        signals=(
-            Signal(kind="regex", params={"pattern": r"\b\d{3,4}\b"}),
-        ),
+        signals=(Signal(kind="regex", params={"pattern": r"\b\d{3,4}\b"}),),
     ),
 ]
 
@@ -179,7 +167,7 @@ TOOLS_TEMPLATES: list[Template] = [
         category="tools",
         difficulty="L2",
         template=(
-            'Émets un objet JSON qui décrit l\'action `{action}` avec les champs '
+            "Émets un objet JSON qui décrit l'action `{action}` avec les champs "
             '`tool`, `args` (objet). Exemple : {{"tool": "search", "args": {{"q": "..."}}}}.'
         ),
         signals=(
@@ -192,7 +180,7 @@ TOOLS_TEMPLATES: list[Template] = [
         difficulty="L3",
         template=(
             "Construis une réponse JSON pour appeler l'outil `{tool_name}` avec "
-            "ces paramètres : {params}. Format : {{\"tool\": \"...\", \"args\": {{...}}}}."
+            'ces paramètres : {params}. Format : {{"tool": "...", "args": {{...}}}}.'
         ),
         signals=(
             Signal(kind="json", params={}),
@@ -211,9 +199,7 @@ EDGE_TEMPLATES: list[Template] = [
         category="edge",
         difficulty="L4",
         template="{garbled}",
-        signals=(
-            Signal(kind="length_range", params={"min_chars": 1, "max_chars": 2000}),
-        ),
+        signals=(Signal(kind="length_range", params={"min_chars": 1, "max_chars": 2000}),),
         metadata={"note": "input bruité"},
     ),
     Template(
@@ -233,9 +219,7 @@ EDGE_TEMPLATES: list[Template] = [
         category="edge",
         difficulty="L4",
         template="{ambiguous_question}",
-        signals=(
-            Signal(kind="length_range", params={"min_chars": 5, "max_chars": 2000}),
-        ),
+        signals=(Signal(kind="length_range", params={"min_chars": 5, "max_chars": 2000}),),
         metadata={"note": "question ambiguë — le modèle doit demander une clarification"},
     ),
 ]
