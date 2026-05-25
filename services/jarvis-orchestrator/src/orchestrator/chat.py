@@ -39,6 +39,15 @@ from jarvis_llm.clients.huggingface_client import DEFAULT_HF_MODEL, HuggingFaceC
 from jarvis_llm.clients.ollama_client import DEFAULT_LOCAL_MODEL, OllamaClient
 from jarvis_llm.intent_classifier import classify
 from jarvis_llm.router import LlmBackend, LlmRouter
+from orchestrator.chat_memory import (
+    DEFAULT_EMBEDDER_KIND,
+    DEFAULT_MEMORY_DB,
+    MemoryStack,
+    augment_messages,
+    build_memory_stack,
+    memory_clear,
+    memory_list,
+)
 from orchestrator.clients import llm_client as grpc_llm_client
 from orchestrator.conversation import Conversation
 from orchestrator.projects.commands import cmd_idee, cmd_projects, cmd_standup, cmd_status
@@ -75,11 +84,20 @@ async def _answer_in_process(
     router: LlmRouter,
     conversation: Conversation,
     user_msg: str,
+    memory: MemoryStack | None = None,
 ) -> tuple[str, str, str]:
-    """Ajoute le user_msg à l'historique, appelle le LLM, ajoute la réponse."""
+    """Ajoute le user_msg à l'historique, appelle le LLM, ajoute la réponse.
+
+    Si `memory` est fourni, on persiste les faits explicites du user_msg et on
+    augmente le system prompt avec les faits pertinents avant d'appeler le LLM.
+    """
     conversation.add_user(user_msg)
     intent = classify(user_msg)
-    result = await router.chat(conversation.as_messages(), intent, max_tokens=1024)
+    messages = conversation.as_messages()
+    if memory is not None:
+        messages = augment_messages(memory, messages, user_msg)
+        memory.bridge.persist_from_user_message(user_msg)  # type: ignore[attr-defined]
+    result = await router.chat(messages, intent, max_tokens=1024)
     conversation.add_assistant(result.text)
     return result.text, result.model, result.intent.value
 
@@ -106,6 +124,7 @@ def _print_banner(
     model: str,
     history_enabled: bool,
     turns_loaded: int,
+    memory_status: str,
 ) -> None:
     mode = "gRPC (jarvis-llm)" if via_grpc else "in-process"
     history_status = (
@@ -117,7 +136,8 @@ def _print_banner(
     print(f"│  backend   : {backend:<46}│")
     print(f"│  model     : {model:<46}│")
     print(f"│  historique: {history_status:<46}│")
-    print("│  /quit /reset /history /model                               │")
+    print(f"│  mémoire   : {memory_status:<46}│")
+    print("│  /quit /reset /history /model /memory [clear]               │")
     print("│  /projects /status <nom> /standup /idee <texte>             │")
     print("└─────────────────────────────────────────────────────────────┘")
 
@@ -141,6 +161,7 @@ def _handle_special_command(
     user: str,
     conversation: Conversation | None,
     last_model: str,
+    memory: MemoryStack | None = None,
 ) -> bool:
     """Retourne True si la ligne user était une commande gérée (REPL doit `continue`)."""
     cmd_lower = user.lower()
@@ -149,7 +170,25 @@ def _handle_special_command(
         raise SystemExit(0)
     if _handle_session_command(cmd_lower, conversation, last_model):
         return True
+    if _handle_memory_command(user, cmd_lower, memory):
+        return True
     return _handle_project_command(user, cmd_lower)
+
+
+def _handle_memory_command(user: str, cmd_lower: str, memory: MemoryStack | None) -> bool:
+    """Commandes liées à la mémoire long-terme (/memory, /memory clear)."""
+    if not cmd_lower.startswith("/memory"):
+        return False
+    if memory is None:
+        print("(mémoire désactivée — relance avec --enable-memory)")
+        return True
+    parts = user.split(maxsplit=1)
+    arg = parts[1].strip().lower() if len(parts) > 1 else ""
+    if arg == "clear":
+        print(memory_clear(memory))
+    else:
+        print(memory_list(memory))
+    return True
 
 
 def _handle_session_command(
@@ -208,6 +247,7 @@ def _dispatch_user_message(
     router: LlmRouter | None,
     conversation: Conversation | None,
     loop: asyncio.AbstractEventLoop,
+    memory: MemoryStack | None = None,
 ) -> tuple[str, str, str]:
     """Route le message utilisateur vers gRPC ou in-process, avec ou sans historique.
 
@@ -220,11 +260,13 @@ def _dispatch_user_message(
         return _answer_via_grpc(user, address=grpc_address)
     if conversation is not None:
         assert router is not None
-        return loop.run_until_complete(_answer_in_process(router, conversation, user))
+        return loop.run_until_complete(
+            _answer_in_process(router, conversation, user, memory=memory)
+        )
     # Mode --no-history en in-process : tour isolé sans persistance
     assert router is not None
     tmp_conv = Conversation(system_prompt=DEFAULT_SYSTEM_PROMPT, window=2, path=None)
-    return loop.run_until_complete(_answer_in_process(router, tmp_conv, user))
+    return loop.run_until_complete(_answer_in_process(router, tmp_conv, user, memory=memory))
 
 
 def run_repl(
@@ -237,6 +279,9 @@ def run_repl(
     grpc_address: str,
     history_enabled: bool,
     history_window: int,
+    enable_memory: bool = False,
+    memory_db: str = str(DEFAULT_MEMORY_DB),
+    memory_embedder: str = DEFAULT_EMBEDDER_KIND,
 ) -> int:
     router: LlmRouter | None = None
     if not via_grpc:
@@ -257,6 +302,19 @@ def run_repl(
     else:
         conversation = None
 
+    # Mémoire long-terme (optionnelle).
+    memory: MemoryStack | None = None
+    memory_status = "off"
+    if enable_memory and not via_grpc:
+        memory = build_memory_stack(db_path=memory_db, embedder_kind=memory_embedder)
+        if memory is None:
+            memory_status = "indisponible (jarvis-memory pas installé ou BGE KO)"
+        else:
+            from jarvis_memory.store import MemoryStore  # noqa: PLC0415
+
+            store: MemoryStore = memory.store  # type: ignore[assignment]
+            memory_status = f"on ({store.count()} faits · {memory_embedder})"
+
     display_model = ollama_model if backend == "ollama" else hf_model
     turns_loaded = conversation.turn_count() if conversation is not None else 0
     _print_banner(
@@ -265,6 +323,7 @@ def run_repl(
         model=display_model,
         history_enabled=conversation is not None,
         turns_loaded=turns_loaded,
+        memory_status=memory_status,
     )
     if backend == "hf" and not via_grpc:
         print("(1er appel HF : chargement modèle, peut prendre 30s à 2min…)", file=sys.stderr)
@@ -285,6 +344,7 @@ def run_repl(
             router=router,
             conversation=conversation,
             last_model=last_model,
+            memory=memory,
         )
     finally:
         with contextlib.suppress(Exception):
@@ -299,6 +359,7 @@ def _repl_loop(
     router: LlmRouter | None,
     conversation: Conversation | None,
     last_model: str,
+    memory: MemoryStack | None = None,
 ) -> int:
     while True:
         try:
@@ -311,7 +372,7 @@ def _repl_loop(
             continue
 
         try:
-            if _handle_special_command(user, conversation, last_model):
+            if _handle_special_command(user, conversation, last_model, memory=memory):
                 continue
         except SystemExit as exc:
             return int(exc.code or 0)
@@ -324,6 +385,7 @@ def _repl_loop(
                 router=router,
                 conversation=conversation,
                 loop=loop,
+                memory=memory,
             )
         except Exception as exc:
             print(f"❌ Erreur : {type(exc).__name__}: {exc}", file=sys.stderr)
@@ -380,6 +442,22 @@ def main() -> int:
         default=DEFAULT_HISTORY_WINDOW,
         help=f"nombre max de messages user/assistant à garder (défaut {DEFAULT_HISTORY_WINDOW})",
     )
+    parser.add_argument(
+        "--enable-memory",
+        action="store_true",
+        help="active la mémoire long-terme cross-session via jarvis-memory",
+    )
+    parser.add_argument(
+        "--memory-db",
+        default=str(DEFAULT_MEMORY_DB),
+        help=f"chemin du store mémoire (défaut {DEFAULT_MEMORY_DB})",
+    )
+    parser.add_argument(
+        "--memory-embedder",
+        choices=["hash", "bge"],
+        default=DEFAULT_EMBEDDER_KIND,
+        help="embedder mémoire : hash (déterministe, sans modèle) ou bge (BGE-large, extra [ml])",
+    )
     args = parser.parse_args()
 
     try:
@@ -392,6 +470,9 @@ def main() -> int:
             grpc_address=args.grpc_address,
             history_enabled=not args.no_history,
             history_window=args.history_window,
+            enable_memory=args.enable_memory,
+            memory_db=args.memory_db,
+            memory_embedder=args.memory_embedder,
         )
     except RuntimeError as exc:
         print(f"❌ {exc}", file=sys.stderr)
