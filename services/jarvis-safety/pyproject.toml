@@ -13,6 +13,7 @@ dependencies = [
     "keyring>=25.0",
     "grpcio>=1.66",
     "loguru>=0.7",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
