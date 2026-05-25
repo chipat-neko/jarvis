@@ -1,20 +1,23 @@
 [project]
 name = "jarvis-memory"
 version = "0.1.0"
-description = "Service Memory : Mem0 + sqlite-vec + embeddings BGE-large local"
+description = "Service Memory : SQLite local + embeddings BGE-large (lazy) pour mémoire long-terme + RAG"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
 authors = [{ name = "Noah Trillon", email = "noah.trillon28@gmail.com" }]
 
+# Le service tourne sans aucune dépendance externe (HashEmbedder + SQLite).
+# Pour activer le vrai embedder sémantique BGE, installer l'extra "ml" :
+#   pip install -e 'services/jarvis-memory[ml]'
 dependencies = [
-    "mem0ai>=0.1",
-    "sqlite-vec>=0.1",
-    "sentence-transformers>=3.0",
-    "grpcio>=1.66",
     "loguru>=0.7",
 ]
 
 [project.optional-dependencies]
+ml = [
+    "sentence-transformers>=3.0",
+    "torch>=2.0",
+]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 
 [build-system]
