@@ -1,0 +1,59 @@
+# ===============================================================
+# Jarvis — config/mcp.example.yaml
+# Modèle de configuration des MCP servers.
+# Dupliquer en `config/mcp.yaml` (gitignored) et adapter aux
+# vrais chemins / credentials de la machine.
+#
+# Les secrets (clés API, tokens) vont dans le keyring OS,
+# JAMAIS dans ce fichier. On référence le keyring via env vars
+# que `mcp_registry.resolved_env()` expanse à l'exécution.
+# ===============================================================
+
+servers:
+  # --- filesystem (P0) -------------------------------------------------
+  # Lecture / écriture fichiers locaux sous une racine donnée.
+  # La whitelist du Sprint A (PathWhitelist) est appliquée par ToolProxy
+  # EN PLUS de la limite native du server filesystem.
+  filesystem:
+    command: "npx"
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "D:/assistant_ai"          # racine autorisée
+    enabled: true
+
+  # --- brave-search (P1) -----------------------------------------------
+  # Recherche web via API Brave. Free tier = 2000 req/mois.
+  # Poser la clé API dans le keyring OS (Credential Manager sur Windows) :
+  #   python -m scripts.set_mcp_secret --name brave_api_key
+  # Le registre résout `$keyring:brave_api_key` au démarrage.
+  # Fallback env var BRAVE_API_KEY si keyring vide.
+  brave-search:
+    command: "npx"
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-brave-search"
+    env:
+      BRAVE_API_KEY: "$keyring:brave_api_key"
+    enabled: false                  # passer à true une fois la clé posée
+
+  # --- github (P0) -----------------------------------------------------
+  # Issues, PRs, commits sur repos GitHub. PAT requis (scope repo).
+  github:
+    command: "npx"
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-github"
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: "$keyring:github_pat"
+    enabled: false                  # passer à true une fois le PAT posé
+
+  # --- home-assistant (P1) ---------------------------------------------
+  # Pilote HA local. Suppose HA déjà configuré + token long-lived.
+  # home-assistant:
+  #   command: "npx"
+  #   args: ["-y", "@home-assistant/mcp-server"]
+  #   env:
+  #     HA_URL: "http://homeassistant.local:8123"
+  #     HA_TOKEN: "$HA_TOKEN"
+  #   enabled: false

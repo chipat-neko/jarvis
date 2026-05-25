@@ -254,6 +254,8 @@ ipython_config.py
 config/local.yaml
 config/user.yaml
 config/*.local.*
+config/mcp.yaml
+config/rules.yaml
 
 # Données de test / fixtures audio personnelles
 fixtures/personal/

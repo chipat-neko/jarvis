@@ -40,6 +40,7 @@ src = [
     "services/jarvis-memory/src",
     "services/jarvis-ui/src",
     "services/jarvis-safety/src",
+    "scripts",
 ]
 extend-exclude = [
     "**/proto_gen/**",  # code généré par grpc_tools.protoc

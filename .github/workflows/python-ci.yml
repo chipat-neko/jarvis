@@ -57,6 +57,8 @@ jobs:
           pip install -e services/jarvis-orchestrator
           pip install -e services/jarvis-llm
           pip install -e services/jarvis-safety
+          pip install -e services/jarvis-tools
+          pip install -e services/jarvis-ui
           # Les autres services seront installés au fil des sprints quand leurs deps seront vraiment utilisées.
 
       - name: ruff check

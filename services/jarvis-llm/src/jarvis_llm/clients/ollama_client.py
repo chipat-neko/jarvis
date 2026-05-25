@@ -29,6 +29,14 @@ DEFAULT_LOCAL_MODEL = os.environ.get("JARVIS_LLM_MODEL", "qwen3:14b")
 
 
 @dataclass(frozen=True, slots=True)
+class OllamaToolCall:
+    """Un tool call demandé par le modèle (forme normalisée)."""
+
+    name: str
+    arguments: dict
+
+
+@dataclass(frozen=True, slots=True)
 class OllamaCompletion:
     """Résultat brut d'une complétion Ollama."""
 
@@ -36,6 +44,7 @@ class OllamaCompletion:
     model: str
     prompt_tokens: int
     completion_tokens: int
+    tool_calls: tuple[OllamaToolCall, ...] = ()
 
 
 class OllamaClient:
@@ -90,6 +99,7 @@ class OllamaClient:
         messages: list[dict[str, str]],
         *,
         max_tokens: int = 512,
+        tools: list[dict] | None = None,
     ) -> OllamaCompletion:
         """Génère une complétion multi-tour à partir d'une liste de messages.
 
@@ -100,21 +110,39 @@ class OllamaClient:
                  {"role": "assistant", "content": "..."},
                  {"role": "user", "content": "..."}]
             max_tokens: limite de tokens en sortie.
+            tools: liste de schémas d'outils (forme OpenAI/Ollama). Si fourni,
+                la réponse peut contenir des `tool_calls` au lieu d'un texte.
 
         Raises:
             ollama.ResponseError: erreur API Ollama (ex: modèle pas pulled).
             httpx.ConnectError: serveur Ollama injoignable.
         """
-        response = await self._client.chat(
-            model=self.model,
-            messages=messages,
-            options={"num_predict": max_tokens},
-            think=self.think,
-            stream=False,
-        )
+        kwargs: dict = {
+            "model": self.model,
+            "messages": messages,
+            "options": {"num_predict": max_tokens},
+            "think": self.think,
+            "stream": False,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        response = await self._client.chat(**kwargs)
+        message = response.get("message", {}) if isinstance(response, dict) else {}
+        # Ollama renvoie tool_calls sous la forme [{"function": {"name": "...", "arguments": {...}}}]
+        tool_calls_raw = message.get("tool_calls") or []
+        tool_calls: list[OllamaToolCall] = []
+        for tc in tool_calls_raw:
+            fn = tc.get("function", {}) if isinstance(tc, dict) else {}
+            name = fn.get("name", "")
+            args = fn.get("arguments") or {}
+            if not isinstance(args, dict):
+                args = {"_raw": args}
+            if name:
+                tool_calls.append(OllamaToolCall(name=name, arguments=args))
         return OllamaCompletion(
-            text=response["message"]["content"],
+            text=message.get("content", "") or "",
             model=response.get("model", self.model),
             prompt_tokens=int(response.get("prompt_eval_count", 0) or 0),
             completion_tokens=int(response.get("eval_count", 0) or 0),
+            tool_calls=tuple(tool_calls),
         )

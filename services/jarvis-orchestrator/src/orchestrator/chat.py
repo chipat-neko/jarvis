@@ -41,6 +41,7 @@ from jarvis_llm.intent_classifier import classify
 from jarvis_llm.router import LlmBackend, LlmRouter
 from orchestrator.clients import llm_client as grpc_llm_client
 from orchestrator.conversation import Conversation
+from orchestrator.projects.commands import cmd_idee, cmd_projects, cmd_standup, cmd_status
 
 DEFAULT_BACKEND = "ollama"
 DEFAULT_HISTORY_WINDOW = 20
@@ -117,6 +118,7 @@ def _print_banner(
     print(f"│  model     : {model:<46}│")
     print(f"│  historique: {history_status:<46}│")
     print("│  /quit /reset /history /model                               │")
+    print("│  /projects /status <nom> /standup /idee <texte>             │")
     print("└─────────────────────────────────────────────────────────────┘")
 
 
@@ -141,25 +143,59 @@ def _handle_special_command(
     last_model: str,
 ) -> bool:
     """Retourne True si la ligne user était une commande gérée (REPL doit `continue`)."""
-    cmd = user.lower()
-    if cmd in {"/quit", "/exit", "exit", "quit"}:
+    cmd_lower = user.lower()
+    if cmd_lower in {"/quit", "/exit", "exit", "quit"}:
         print("👋 Bye.")
         raise SystemExit(0)
-    if cmd == "/reset":
+    if _handle_session_command(cmd_lower, conversation, last_model):
+        return True
+    return _handle_project_command(user, cmd_lower)
+
+
+def _handle_session_command(
+    cmd_lower: str,
+    conversation: Conversation | None,
+    last_model: str,
+) -> bool:
+    """Commandes liées à la session courante (/reset, /history, /model)."""
+    if cmd_lower == "/reset":
         if conversation is None:
             print("(historique désactivé)")
         else:
             conversation.reset()
             print("✅ Historique effacé (mémoire + disque).")
         return True
-    if cmd == "/history":
+    if cmd_lower == "/history":
         if conversation is None:
             print("(historique désactivé)")
         else:
             _show_history(conversation)
         return True
-    if cmd == "/model":
+    if cmd_lower == "/model":
         print(f"Dernier modèle : {last_model}")
+        return True
+    return False
+
+
+def _handle_project_command(user: str, cmd_lower: str) -> bool:
+    """Commandes liées à la gestion projet (/projects, /status, /standup, /idee)."""
+    if cmd_lower == "/projects":
+        print(cmd_projects())
+        return True
+    if cmd_lower == "/standup":
+        print(cmd_standup())
+        return True
+    if cmd_lower.startswith("/status"):
+        parts = user.split(maxsplit=1)
+        if len(parts) < 2:
+            print("Usage : /status <nom-projet>")
+        else:
+            print(cmd_status(parts[1].strip()))
+        return True
+    if cmd_lower.startswith("/idee"):
+        parts = user.split(maxsplit=1)
+        text = parts[1].strip() if len(parts) > 1 else ""
+        print(cmd_idee(text))
         return True
     return False
 
